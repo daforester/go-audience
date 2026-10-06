@@ -1,0 +1,29 @@
+HTTP_BASE = "/"
+HTTP_HOST = "localhost"
+HTTP_PORT = 80
+HTTP_SCHEMA = "https"
+
+SITE_MODE = "production"
+
+# Session keys are never committed. Provide them from the environment:
+#   FANTASY_SESSION_AUTHKEY (base32, 64 bytes) and FANTASY_SESSION_ENCKEY (base32, 32 bytes)
+
+# Explicit allow-list of browser origins, used for HTTP CORS and websocket upgrades
+CORS_ALLOW_ORIGINS = []
+
+# Be naughty: allow any Origin whose host matches the Host the request arrived on.
+# Handy behind changing tunnels/LAN IPs at a convention. Not for public production.
+CORS_BE_NAUGHTY = false
+
+# Only honour X-Forwarded-* headers from these proxies
+TRUST_PROXY = false
+TRUSTED_PROXIES = []
+
+MAX_TEAMS = 3
+MAX_NAME_LENGTH = 32
+MAX_SUBMISSION_LENGTH = 280
+SUBMISSION_COOLDOWN_SECONDS = 10
+
+LOG_LEVEL = 2
+GAME_STATE_FILE = "fantasy-game.dat"
+SNAPSHOT_INTERVAL_SECONDS = 30

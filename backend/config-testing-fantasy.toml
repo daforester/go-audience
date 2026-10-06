@@ -1,0 +1,18 @@
+HTTP_BASE = "/"
+HTTP_HOST = "localhost"
+HTTP_PORT = 8090
+HTTP_SCHEMA = "http"
+
+SITE_MODE = "dev"
+
+CORS_ALLOW_ORIGINS = ["http://localhost:5173"]
+CORS_BE_NAUGHTY = false
+
+TRUST_PROXY = false
+TRUSTED_PROXIES = []
+
+MAX_TEAMS = 3
+
+LOG_LEVEL = 4
+GAME_STATE_FILE = "fantasy-game.dat"
+SNAPSHOT_INTERVAL_SECONDS = 30

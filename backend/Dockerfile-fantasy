@@ -1,0 +1,21 @@
+FROM golang:1.27 AS compiler
+
+COPY apps/fantasy /src/fantasy/
+
+WORKDIR /src/fantasy
+
+RUN go mod download && CGO_ENABLED=0 go build -o /go/bin/fantasy ./cmd/fantasy.go
+
+RUN mkdir /data
+
+FROM gcr.io/distroless/static-debian12:nonroot
+
+COPY --from=compiler /go/bin/fantasy /fantasy
+
+COPY config-fantasy.toml /config.toml
+
+COPY --from=compiler --chown=65532:65532 /data /data
+
+USER nonroot
+
+ENTRYPOINT ["/fantasy", "-config", "/config.toml", "-root", "/", "-state", "/data/fantasy-game.dat"]

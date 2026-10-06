@@ -1,0 +1,17 @@
+version: '3.7'
+
+services:
+  web:
+    image: furzr/fantasy:latest
+    environment:
+      - FANTASY_SESSION_AUTHKEY
+      - FANTASY_SESSION_ENCKEY
+      - FANTASY_CORS_ALLOW_ORIGINS
+      - FANTASY_CORS_BE_NAUGHTY
+    volumes:
+      - fantasy-data:/data
+    ports:
+      - "8090:80"
+
+volumes:
+  fantasy-data:
