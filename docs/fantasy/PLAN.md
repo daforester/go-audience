@@ -7,17 +7,39 @@ Ancestor: Trudge (`backend/apps/trudge`, `frontend/trudge`).
 `backend/libs`, `backend/vendor`, `backend/go.mod` or the trudge Docker/config files is
 modified.** Fantasy copies what it needs and evolves the copy.
 
+**Style rule: Fantasy should read like a natural next step from Trudge, written by the same
+author.** Same layout, same layering (router → controller → processor → repository / messages),
+same `go-di-container` wiring, same naming conventions (`XxxController`, `XxxProcessor`,
+`XxxProcessorInterface`, `New(...)` constructors, receiver names `C` / `P` / `r`), same
+frontend shape (Options API `.vue` files, `views/`, `components/<role>/`, `mixins/`,
+`TokenManager.vue`, `WebSocket.vue`, mitt emitter). Library versions move to latest; the
+code style does not change. Where an upgrade forces an API change (e.g. jwt v5), keep the
+surrounding code shape identical.
+
+The one deliberate framework change is **gin → Fiber v3** (section 2a). Routers, controllers,
+processors and bindings keep their Trudge shape; only the request context type changes
+(`*gin.Context` → `fiber.Ctx`).
+
 ---
 
 ## 1. Game summary
 
-| Trudge role            | Fantasy role        | Count     | Purpose                                                                 |
-|------------------------|---------------------|-----------|-------------------------------------------------------------------------|
-| Leader                 | **Admin**           | 1+        | Runs the show: phases, teams, role assignment, moderation overrides     |
-| Display                | **Display**         | 1+        | Projector / main screen                                                 |
-| God                    | **Staff**           | many      | Triage the submission queue: approve/reject and upvote                  |
-| Warrior / Wizard / Bard| **Director**        | many      | Belongs to one **Director Team**. Teams answer each topic               |
-| Audience               | **Audience**        | many      | Submit problems, react ±1 to the live topic, vote for best team answer  |
+| Trudge role            | Fantasy role   | Constant                     | Count | Purpose                                                            |
+|------------------------|----------------|------------------------------|-------|--------------------------------------------------------------------|
+| Leader                 | **Admin**      | `PLAYER_CLASS_ADMIN`         | 1+    | Runs the show: phases, teams, role assignment, settings, moderation overrides |
+| Display                | **Display**    | `PLAYER_CLASS_DISPLAY`       | 1+    | Projector / main screen                                            |
+| God                    | **Staff**      | `PLAYER_CLASS_STAFF`         | many  | Triage the submission queue: approve/reject and upvote             |
+| Warrior / Wizard / Bard| **Director**   | `PLAYER_CLASS_DIRECTOR`      | many  | Belongs to one **Director Team**; teams answer each topic          |
+| Audience               | **Audience**   | `PLAYER_CLASS_AUDIENCE`      | many  | Submit problems, react ±1 while teams present, vote for best team  |
+
+### Director teams
+
+- Typical game: **2 teams**. Must work equally well with **3**.
+- Teams are a slice on the game (`Game.Teams []*Team`), never hard-coded pairs. A
+  `MAX_TEAMS` config value (default `3`) caps how many the admin can create; minimum 2 to
+  start a round.
+- Every team-facing layout (display vote bars, round reveal, final podium, admin tallies)
+  is built for N teams and visually checked at 2 and 3.
 
 ### Round loop
 
@@ -30,271 +52,453 @@ Lobby ─► Intake (submissions open) ─┐
             │                       ▼
             │                 Audience Vote      one vote per audience member, for a team
             │                       ▼
-            └──────────────── Round Result       winning team revealed, scores updated
+            └──────────────── Round Result       winning team revealed, round win awarded
                                     ▼ (admin ends game)
                               Final Tally        winning Director Team + winning audience submission
 ```
 
 Submission intake and staff triage run **continuously** in the background of every phase
-(unless the admin closes submissions), so the queue keeps filling between rounds.
+(unless the admin closes submissions, like Trudge's suggestions toggle), so the queue keeps
+filling between rounds.
 
-### Scoring (default proposal, see open questions)
+### Scoring
 
-- Team round score: the team with most audience votes wins the round: **+1 round win**.
-  Also keep the raw vote totals per team as the tie-breaker for the final tally.
-- Submission score: `upvotes - downvotes` from the audience while it was the live topic.
-  The winning submission is the highest net score among submissions that were played.
-- Staff votes decide *which* item gets played; they do not count towards the winning submission.
+- **Teams: one point per round won.** The team with the most audience votes in a round gets
+  `RoundWins += 1`. If teams tie for the most votes, each tied team gets the win.
+  Raw vote totals are also accumulated per team (`TotalVotes`) and used only to break a tie
+  in the final tally; if still tied, the final reveal shows joint winners.
+- **Submissions:** audience members react +1 / -1 to the live topic **only during the
+  Responses phase** (while teams are presenting). Net score = ups - downs. The winning
+  submission is the highest net score among played submissions; tie-break by most total
+  reactions, then earliest played.
+- Staff votes decide *which* item gets played; they do not count towards the winning
+  submission.
+
+### Submitter names (admin toggle)
+
+`Game.ShowSubmitterNames bool`, toggled from the admin panel (default `false`), broadcast
+the same way Trudge broadcasts `SUGGESTIONS_ENABLED`.
+
+- Admin and Staff always see the author (needed for moderation).
+- Display, Directors and Audience receive `AuthorName` only when the toggle is on; otherwise
+  the server blanks it before sending. Filtering happens server-side, not in the UI.
+- Applies everywhere: topic reveal, round result and the final "winning submission" reveal.
 
 ---
 
-## 2. Technology: "latest everything"
+## 2. Technology: latest libraries, same shape
 
 Trudge shares `backend/go.mod` (Go 1.19, gin 1.8, `dgrijalva/jwt-go`, `mgo.v2`, vendored).
-Upgrading that module would change Trudge, so **Fantasy gets its own Go module** at
-`backend/apps/fantasy/go.mod`. A nested `go.mod` automatically excludes the directory from
-the parent module, so Trudge's `-mod=vendor` build is unaffected.
+Upgrading it would change Trudge, so **Fantasy gets its own Go module** at
+`backend/apps/fantasy/go.mod`, module path `bitbucket.org/daforester/go-audience/apps/fantasy`.
+A nested `go.mod` excludes the directory from the parent module, so Trudge's `-mod=vendor`
+build is unaffected.
 
-Fantasy must not import `bitbucket.org/daforester/go-audience/services/...` (they pull the old
-dependency set). Copy the small pieces needed (`controller`, `router`, `ginhelper/bearerauth`)
-into `backend/apps/fantasy/internal/...` and modernise them.
-
-Pin exact versions when scaffolding (`go get -u`, `npm create vue@latest`), not in this plan.
+`backend/services` is built on gin, `ginhelper` imports `dgrijalva/jwt-go`, and
+`services/sessions` imports `mgo.v2`, so Fantasy can't reuse them. It gets its own copy, laid
+out the same way and ported to Fiber: `backend/apps/fantasy/services/{controller,router,fiberhelper}`
+(plus `libs/slice` if needed). Import paths change from `.../go-audience/services/controller`
+to `.../go-audience/apps/fantasy/services/controller`; the code inside stays recognisably the same.
 
 ### Backend
 
-| Concern        | Trudge                                   | Fantasy                                                       |
-|----------------|------------------------------------------|---------------------------------------------------------------|
-| Go             | 1.19 (Docker image 1.18)                 | Current toolchain (1.27 installed locally), matching Docker image |
-| HTTP           | gin 1.8                                  | gin latest (keep gin for familiarity)                         |
-| JWT            | `dgrijalva/jwt-go` (archived)            | `github.com/golang-jwt/jwt/v5`                                |
-| WebSocket      | gorilla/websocket 1.5.0                  | gorilla/websocket latest, or `github.com/coder/websocket` (context-aware) |
-| Config         | viper 1.15                               | viper latest                                                  |
-| Logging        | logrus                                   | stdlib `log/slog`                                             |
-| DI             | `daforester/go-di-container` (reflection)| Explicit constructor wiring in `cmd/fantasy/main.go` (see open questions) |
-| Sessions       | gin-contrib/sessions + mgo.v2            | Drop: JWT bearer tokens are all the game uses                 |
-| IDs            | google/uuid                              | google/uuid latest                                            |
-| Persistence    | in-memory map + JSON dump on SIGINT      | Same model, but mutex-correct, atomic write (temp + rename), periodic snapshots, SIGTERM handled |
-| Tests          | none for trudge                          | `go test -race` on domain + processors; httptest for API; ws integration test |
+| Concern      | Trudge                                  | Fantasy                                                        |
+|--------------|-----------------------------------------|----------------------------------------------------------------|
+| Go           | 1.19 (Docker image 1.18)                | Current toolchain (1.27 locally); Docker image to match        |
+| DI           | `daforester/go-di-container` v1.0.2     | **Same library**, latest tag; `bindings/bindings.go` pattern kept |
+| HTTP         | gin 1.8                                 | **Fiber v3** (`github.com/gofiber/fiber/v3`), latest v3.x tag  |
+| CORS         | gin-contrib/cors 1.4 with hard-coded origins | Fiber `middleware/cors` for the allow-list, plus a small custom middleware for naughty mode (section 5) |
+| JWT          | `dgrijalva/jwt-go` (archived)           | `github.com/golang-jwt/jwt/v5` (drop-in style: `jwt.Parse`, `jwt.MapClaims`) |
+| WebSocket    | gorilla/websocket 1.5.0                 | `github.com/gofiber/contrib/v3/websocket` (fasthttp/websocket, a gorilla fork: same `ReadMessage`/`WriteMessage` and message types) |
+| Config       | viper 1.15                              | viper latest                                                   |
+| Logging      | logrus                                  | logrus latest (kept for continuity)                            |
+| Location     | gin-contrib/location                    | Dropped: `HTTP_SCHEMA`/`HTTP_HOST`/`HTTP_BASE` config read directly where needed |
+| IDs          | google/uuid                             | google/uuid latest                                             |
+| Sessions     | gin-contrib/sessions + mgo.v2           | Dropped: Trudge registers sessions but no controller uses them; auth is JWT bearer only |
+| Persistence  | memory map + JSON dump on SIGINT        | Same `MemoryGameRepository` + `LoadFromDisk`/`SaveToDisk`, with the lock fixes in section 8; SIGINT and SIGTERM, then `app.ShutdownWithTimeout` |
+| Tests        | none for trudge                         | `go test -race` on models + processors; `app.Test(req)` for controllers |
+
+### 2a. Fiber v3 migration: keeping websocket behaviour and staying safe
+
+**What changes in the code (and what doesn't):**
+
+```go
+// Trudge (gin)
+router.POST("/api/game/option/vote", func(c *gin.Context) {
+    P.RunController(c, &http2.VoteOptionController{})
+})
+
+// Fantasy (Fiber v3)
+router.Post("/api/game/round/vote", func(c fiber.Ctx) error {
+    return P.RunController(c, &http2.VoteTeamController{})
+})
+```
+
+- `services/router.BaseRouter.RunController` still does `B.container.Make(C)`, `SetContext(c)`,
+  `Run()`; it now returns the error so Fiber's error handler sends the 500.
+- Controllers keep `C.GetContext().(fiber.Ctx)`; `c.BindJSON(x)` becomes `c.Bind().JSON(x)`,
+  `c.Param("uuid")` becomes `c.Params("uuid")`, `c.JSON(code, e)` becomes `c.Status(code).JSON(e)`.
+- `controllers/http` keeps its folder and package name, matching Trudge.
+
+**Websocket behaviour is kept:**
+
+| Trudge behaviour                                        | Fantasy on Fiber v3                                               |
+|---------------------------------------------------------|-------------------------------------------------------------------|
+| `GET /ws/:room/:player`, upgrade in `EstablishSocketController` | Same route; a pre-upgrade middleware validates token + origin (`websocket.IsWebSocketUpgrade(c)`), then `websocket.New(handler)` |
+| `sockets.Collection` / `Connection` with tags, `Related`, write mutex | Unchanged API; `Connection` wraps `*websocket.Conn` from contrib. Mutex kept: still one concurrent writer per socket |
+| `CODE <n>` + settings messages on connect               | Unchanged                                                         |
+| `PING`/`PONG` text keepalive in `ReadSocket`            | Unchanged                                                         |
+| Blocking read loop, then remove connection + empty collection | Unchanged; the handler blocks in `ReadSocket` exactly as now  |
+| Room/player from path params                            | `conn.Params("room")`; the contrib `*websocket.Conn` is allocated per upgrade and not reused, so these stay valid for the socket's lifetime |
+
+**Security risks Fiber introduces, and how Fantasy closes each one:**
+
+1. **fasthttp buffer reuse.** By default, strings returned by `c.Params()`, `c.Body()`,
+   `c.Get()` etc. are only valid until the handler returns; the memory is then reused for
+   another request. Fantasy stores request strings in long-lived models (player names,
+   submission text) and hands them to socket goroutines, so without care one user's data
+   could silently become another's. **Fix: `fiber.Config{Immutable: true}`.** Plus a test that
+   joins two players back-to-back and asserts neither name changes.
+2. **Ctx pooling.** `fiber.Ctx` is recycled after the handler. Controllers are created per
+   request by `RunController`, so they never outlive it; rule: never capture `c` in a
+   goroutine or store it in a model, socket `Related` map or processor.
+3. **Websocket origin check defaults to open.** contrib `websocket.Config.Origins` empty means
+   *any origin*. Fantasy never relies on it. The pre-upgrade middleware always runs the same
+   `setup.OriginAllowed(c)` check as CORS (section 5), and rejects with 403 before upgrading.
+4. **CORS origin callback has no request.** Fiber's `AllowOriginsFunc(origin string) bool` can't
+   see the request Host, so naughty mode is a small custom middleware (section 5), not a
+   permissive `AllowOriginsFunc`. Credentials are never combined with `*`; Fiber panics on
+   that combination anyway.
+5. **Proxy headers.** `c.Hostname()` / `c.IP()` trust `X-Forwarded-*` only when
+   `TrustProxy: true` and the caller is in `TrustProxyConfig`. Fantasy maps `TRUST_PROXY` and
+   `TRUSTED_PROXIES` config onto these, default off, so naughty mode can't be fooled by a
+   spoofed `X-Forwarded-Host` from the internet.
+6. **Request size and slow clients.** Set `BodyLimit` to 64 KB (default 4 MB), and set
+   `ReadTimeout`, `WriteTimeout` and `IdleTimeout` (all default to unlimited). Websocket read limit
+   via `conn.SetReadLimit` (e.g. 4 KB, since clients only send PINGs).
+7. **Panics.** `middleware/recover` on HTTP routes; `websocket.Config.RecoverHandler` on the ws
+   route (the generic recover middleware does not cover the socket goroutine).
+
+**Why it's worth it:** Fiber v3 is actively maintained, its contrib websocket keeps the
+gorilla programming model, and the routing reads almost the same as gin. The risks above are
+configuration, settled once in `cmd/fantasy.go` and `setup/`, and covered by tests in phase 1.
 
 ### Frontend
 
-| Concern     | Trudge                                  | Fantasy                                                    |
-|-------------|-----------------------------------------|------------------------------------------------------------|
-| Scaffold    | create-vue (2022)                       | `npm create vue@latest` → Vue 3 latest, TypeScript, Router, Pinia, Vitest, ESLint flat config, Prettier |
-| Components  | Options API, `.vue` JS                  | `<script setup lang="ts">`, Composition API, typed props/emits |
-| State       | Pinia 2 + persistedstate 3, mitt bus    | Pinia latest + pinia-plugin-persistedstate latest; event bus replaced by stores/composables |
-| HTTP        | axios                                   | axios latest (keeps TokenManager logic portable) or `fetch` wrapper |
-| WebSocket   | `WebSocket.vue` component               | `useSocket()` composable with reconnect + typed message dispatch |
-| CSS         | Bootstrap 4 + Sass                      | Bootstrap 5.3 + Sass (modern `@use`, no `@import`)          |
-| Icons       | FontAwesome Pro 5.15.4 tarballs         | FontAwesome latest (free set unless a current Pro licence/npm token is available) |
-| Tooling     | Vite 4, TS 4.7, Vitest 0.25             | Vite, TypeScript, Vitest, vue-tsc latest                   |
-| Node        | —                                       | Node 24 LTS (installed locally); add `.nvmrc` / `engines`  |
+Fresh `create-vue` project at `frontend/fantasy`, then reshaped to mirror `frontend/trudge`:
+same `main.ts` (provide/globalProperties, mitt emitter), same `router/index.ts`,
+`stores/local.ts` with persisted tokens, `WebApp.vue`, `TokenManager.vue`, `WebSocket.vue`,
+`mixins/`, Options API components in `.vue` files.
+
+| Concern     | Trudge                              | Fantasy                                                         |
+|-------------|-------------------------------------|-----------------------------------------------------------------|
+| Framework   | Vue 3.2, vue-router 4.1             | Vue latest, vue-router latest                                   |
+| State       | Pinia 2 + persistedstate 3, mitt 3  | Pinia, pinia-plugin-persistedstate, mitt latest                 |
+| HTTP        | axios 1.2                           | axios latest                                                    |
+| Build       | Vite 4, TS 4.7, vue-tsc 1, Vitest 0.25 | Vite, TypeScript, vue-tsc, Vitest latest                     |
+| Lint        | ESLint 8 `.eslintrc.cjs`, Prettier 2 | ESLint latest (flat `eslint.config.js`), Prettier latest       |
+| CSS         | Bootstrap 4 + Sass `@import`        | Bootstrap 5.3 + Sass latest (`@use`; Sass has removed `@import` support) |
+| Icons       | FontAwesome Pro 5.15.4 tarballs + free-solid | **FontAwesome Free only** (`@fortawesome/free-solid-svg-icons`, `free-regular-svg-icons`, `vue-fontawesome`), same `libs/fontawesome/minimal.js` registration pattern. No Pro tarballs. |
+| Node        | —                                   | Node 24 LTS; add `engines` to `package.json`                    |
 
 ---
 
-## 3. Target layout (new files only)
+## 3. Target layout (new files only, mirrors Trudge)
 
 ```
 backend/
   apps/fantasy/
     go.mod, go.sum
-    cmd/fantasy/main.go            wiring, server, graceful shutdown, snapshots
-    internal/
-      config/                      viper setup (from trudge setup/config.go, keys.go)
-      auth/                        JWT issue/verify (golang-jwt v5), bearer middleware
-      domain/                      Game, Player, Team, Submission, Round, Phase; pure logic + tests
-      repository/                  GameRepository + MemoryGameRepository (race-free)
-      processors/                  one per command (same pattern as trudge)
-      http/controllers/            gin handlers (same pattern as trudge)
-      http/router/                 api + ws routes
-      realtime/                    hub, rooms, role-tagged connections, typed messages
-  config-fantasy.toml              NO secrets committed: keys from env vars
+    app/
+      controllers/http/            one file per endpoint, e.g. new_submission.go, staff_vote.go
+      helpers/                     get_request_player.go
+      messages/                    one file per broadcast, e.g. topic_revealed_message.go
+      processors/                  one file per command, e.g. new_submission_processor.go
+      requests/                    create_game.go, join_game.go, assign_player.go, ...
+      routers/                     api_router.go, websocket_router.go
+      sockets/                     collection.go, connection.go, reader.go
+    bindings/bindings.go           app.Singleton / app.Bind registrations
+    cmd/fantasy.go                 main, same shape as cmd/trudge.go
+    middleware/                    mustbeplayer.go, mustberole.go, naughty_cors.go, websocket_upgrade.go
+    models/                        game.go, player.go, team.go, submission.go, round.go
+    repositories/                  game_repository.go, memory_game_repository.go
+    services/                      controller/, router/, fiberhelper/ (copied, Fiber v3 + jwt v5)
+    setup/                         config.go, keys.go, logger.go, cors.go
+  config-fantasy.toml              no secrets committed: session keys from env vars
   config-testing-fantasy.toml
   Dockerfile-fantasy               builds from backend/apps/fantasy
   docker-compose-fantasy.yml
 frontend/
-  fantasy/                         fresh create-vue project
+  fantasy/
     src/
-      api/                         typed client, token refresh (port of TokenManager)
-      realtime/useSocket.ts        socket composable + message types
-      stores/                      session.ts, game.ts, submissions.ts
-      views/                       Login, Admin, Display, Staff, Director, Audience
-      components/{admin,display,staff,director,audience,shared}/
-      styles/
+      components/
+        admin/  audience/  backgrounds/  director/  display/  staff/  inputs/  player/
+        Login.vue  TokenManager.vue  WebSocket.vue
+      libs/{debug,fontawesome,scss}/
+      mixins/api/CachedRequest.vue
+      router/index.ts
+      stores/local.ts
+      views/  Game.vue  Admin.vue  Display.vue  Staff.vue  Director.vue  Audience.vue  Logout.vue
+      main.ts  WebApp.vue
 docs/fantasy/PLAN.md               this file
 ```
 
+`views/Game.vue` keeps Trudge's approach: one route, a socket, and a `v-if` per
+`Player.Class` choosing the role view.
+
 ---
 
-## 4. Domain model (backend `internal/domain`)
+## 4. Models (`apps/fantasy/models`)
+
+Written in the style of `apps/trudge/models`: plain structs, typed string constants, helper
+methods on `*Game`.
 
 ```go
-type Role string // Admin, Display, Staff, Director, Audience
+type PlayerClass string
 
-type Phase string // Lobby, Intake, TopicReveal, Responses, AudienceVote, RoundResult, FinalTally
+const (
+    PLAYER_CLASS_ADMIN    PlayerClass = "Admin"
+    PLAYER_CLASS_AUDIENCE PlayerClass = "Audience"
+    PLAYER_CLASS_DIRECTOR PlayerClass = "Director"
+    PLAYER_CLASS_DISPLAY  PlayerClass = "Display"
+    PLAYER_CLASS_STAFF    PlayerClass = "Staff"
+)
+
+var FantasyPlayerClassesStrings = []string{ /* as TrudgePlayerClassesStrings */ }
 
 type Player struct {
-    UUID, Name, RoomKey string
-    Role   Role
-    TeamID string // Directors only
+    Class   PlayerClass
+    Name    string
+    RoomKey string
+    TeamID  string // Directors only
+    UUID    string
 }
 
 type Team struct {
-    ID, Name  string
-    RoundWins int
+    ID         string
+    Name       string
+    RoundWins  int
     TotalVotes int
 }
 
-type SubmissionKind string // Question, Complaint, IncidentReport, Other
-
+type SubmissionKind string   // Question, Complaint, IncidentReport, Other
 type SubmissionStatus string // Pending, Approved, Rejected, Played
 
 type Submission struct {
-    ID, AuthorUUID, AuthorName string
-    Kind      SubmissionKind
-    Text      string
-    Status    SubmissionStatus
-    StaffVotes map[string]struct{} // staff UUID set: one upvote each, toggleable
-    Reactions  map[string]int8     // audience UUID -> +1 / -1 (changeable, not stackable)
-    CreatedAt time.Time
+    ID         string
+    AuthorUUID string
+    AuthorName string
+    Kind       SubmissionKind
+    Text       string
+    Status     SubmissionStatus
+    StaffVotes map[string]bool // staff UUID -> voted, toggleable
+    Reactions  map[string]int  // audience UUID -> +1 / -1, changeable, not stackable
+    Created    time.Time
+    Played     *time.Time
 }
 
 type Round struct {
-    Number       int
-    SubmissionID string
-    TeamOrder    []string          // presentation order
+    Number         int
+    SubmissionID   string
+    TeamOrder      []string
     PresentingTeam string
-    Votes        map[string]string // audience UUID -> team ID (one vote each, changeable until close)
-    WinnerTeamIDs []string         // ties allowed
+    Votes          map[string]string // audience UUID -> team ID, changeable until vote closes
+    WinnerTeamIDs  []string          // ties allowed
 }
 
 type Game struct {
-    Key        string
-    Phase      Phase
-    SubmissionsOpen bool
-    Players    []*Player
-    Teams      []*Team
-    Submissions []*Submission
-    Rounds     []*Round
-    Version    uint64 // bumps on every mutation; clients drop stale deltas
-    Volume     int
-    Created, Updated time.Time
+    Key                string
+    GameCode           int
+    Players            []*Player
+    Teams              []*Team
+    Submissions        []*Submission
+    Rounds             []*Round
+    SubmissionsEnabled bool
+    ShowSubmitterNames bool
+    Volume             int
+    Created            time.Time
+    Updated            time.Time
+    Deleted            *time.Time
 }
+
+func (g *Game) GetStaff() []*Player
+func (g *Game) GetDirectors() []*Player
+func (g *Game) GetTeamDirectors(teamID string) []*Player
+func (g *Game) GetCurrentRound() *Round
+func (g *Game) NextTopic() *Submission // most StaffVotes among Approved, oldest first on ties
 ```
 
-Key rules (all unit-tested, all in `domain`, no I/O):
+### Game codes
 
-- `NextTopic()`: highest `len(StaffVotes)` among `Approved`; tie-break oldest `CreatedAt`.
-  Admin can override with a specific submission ID.
-- Votes and reactions are **maps keyed by voter UUID**, so a voter can never vote twice.
-  (Trudge increments counters with no per-voter record, so repeat votes double-count, and its
-  `Votes` padding path appends nil maps that would panic if written.)
-- Phase transitions are validated by a small state machine (`CanTransition(from, to)`);
-  the admin UI only shows legal next steps. Replaces Trudge's magic `GameCode` integers.
-- Directors and staff cannot vote in the audience vote; audience cannot see the staff queue.
+Trudge drives the UI with numeric `GameCode`s (20 lobby, 30 started, 600 end, ...). Fantasy
+keeps that mechanism so the admin buttons, `CODE <n>` socket message and `gameCode` props look
+the same, but as named constants in `models/game_code.go` with an allowed-transition table
+checked in `SetGameCodeProcessor`:
 
----
+| Code | Constant                       | Phase          |
+|------|--------------------------------|----------------|
+| 20   | `GAME_CODE_LOBBY`              | Lobby          |
+| 30   | `GAME_CODE_INTAKE`             | Intake         |
+| 100  | `GAME_CODE_TOPIC_REVEAL`       | Topic Reveal   |
+| 110  | `GAME_CODE_RESPONSES`          | Responses      |
+| 120  | `GAME_CODE_AUDIENCE_VOTE`      | Audience Vote  |
+| 130  | `GAME_CODE_ROUND_RESULT`       | Round Result   |
+| 600  | `GAME_CODE_FINAL_TALLY`        | Final Tally    |
 
-## 5. API (REST commands + WebSocket events)
+Rules enforced in processors (and covered by tests):
 
-Same split as Trudge: REST for commands, WebSocket for broadcasts. All under `/api`.
-
-| Method | Path                                   | Role          | Purpose                               |
-|--------|----------------------------------------|---------------|---------------------------------------|
-| POST   | /game                                  | anyone        | Create game, creator becomes Admin    |
-| POST   | /game/join                             | anyone        | Join as Audience                      |
-| GET    | /game                                  | any player    | Snapshot filtered by role             |
-| POST   | /token/refresh                         | any player    | Refresh JWT                           |
-| POST   | /game/quit                             | any player    |                                       |
-| POST   | /game/phase                            | Admin         | Transition phase                      |
-| POST   | /game/submissions/toggle               | Admin         | Open/close intake                     |
-| POST   | /teams, PATCH/DELETE /teams/:id        | Admin         | Manage director teams                 |
-| POST   | /players/:uuid/role                    | Admin         | Assign role (+ team for Directors)    |
-| DELETE | /players/:uuid                         | Admin         | Kick                                  |
-| POST   | /rounds/topic                          | Admin         | Start round (auto top item or by ID)  |
-| POST   | /rounds/current/presenting             | Admin         | Set presenting team                   |
-| POST   | /submissions                           | Audience      | New submission (kind + text, length-limited, rate-limited) |
-| POST   | /submissions/:id/status                | Staff, Admin  | Approve / reject                      |
-| POST   | /submissions/:id/staff-vote            | Staff         | Toggle upvote                         |
-| POST   | /rounds/current/reaction               | Audience      | +1 / -1 / 0 on live topic             |
-| POST   | /rounds/current/vote                   | Audience      | Vote for team                         |
-| POST   | /game/volume                           | Admin, Display| Music volume (as Trudge)              |
-
-WebSocket: `GET /ws/:room?token=<jwt>`. Token is verified and the player resolved server-side
-(Trudge trusts a UUID in the path). `CheckOrigin` uses the CORS allowlist (Trudge accepts all).
-
-Message envelope: `{"type": "...", "version": N, "data": {...}}`. On connect the server sends
-`SNAPSHOT` (role-filtered); afterwards deltas:
-
-`PHASE_CHANGED`, `PLAYER_JOINED`, `PLAYER_LEFT`, `ROLE_ASSIGNED`, `TEAM_UPDATED`,
-`SUBMISSION_NEW` (staff/admin only), `SUBMISSION_UPDATED` (staff/admin), `TOPIC_REVEALED`,
-`PRESENTING_TEAM`, `REACTION_TALLY` (throttled ~4/s), `VOTE_TALLY` (admin/display, throttled),
-`ROUND_RESULT`, `FINAL_TALLY`, `VOLUME`.
-Keep the `PING`/`PONG` keepalive so the client logic stays familiar.
-
-Role-filtered broadcast replaces Trudge's tag-based `HasTag(...)` calls: the hub exposes
-`Broadcast(room, msg, roles...)`.
+- Votes and reactions are maps keyed by voter UUID, so no one can vote twice. (Trudge
+  increments counters with no per-voter record, so repeat votes double-count, and its `Votes`
+  padding path appends nil maps that would panic if written.)
+- Reactions are accepted only at `GAME_CODE_RESPONSES`; team votes only at
+  `GAME_CODE_AUDIENCE_VOTE`; only `Audience` may react or vote.
+- Starting a round needs at least 2 teams, each with at least one Director.
+- Teams cannot be added or removed mid-round.
 
 ---
 
-## 6. Frontend views
+## 5. Allowed origins (configurable, with "be naughty")
 
-| View      | Shows                                                                                         |
-|-----------|-----------------------------------------------------------------------------------------------|
-| Login     | Room code + name; "create game" for admin (port Trudge `Login.vue`)                           |
-| Admin     | Phase controls (legal next steps only), player list with role/team assignment, team editor, submission override/hide, live vote and reaction tallies, intake toggle, volume |
-| Display   | Lobby/QR + room code, topic card, presenting-team banner, live reaction meter, vote bars, round winner reveal, final podium (team + submission). Port Trudge backgrounds/animations where they fit |
-| Staff     | Queue tabs (Pending / Approved / Rejected), approve/reject, upvote toggle, sorted by votes; preview of "next up" |
-| Director  | Team name and teammates, current topic, "your team is presenting" cue, scoreboard            |
-| Audience  | Submission form (kind picker + text) while intake open; ±1 reaction on the live topic; team vote during Audience Vote; otherwise PleaseWait |
+New settings in `config-fantasy.toml`, read in `setup/cors.go`. One function,
+`setup.OriginAllowed(c fiber.Ctx) bool`, is used by **both** the HTTP CORS middleware and the
+websocket pre-upgrade check, so they cannot drift apart:
 
-Use router routes per role (`/admin`, `/display`, `/staff`, `/director`, `/play`) guarded by the
-session store, instead of Trudge's single `Game.vue` with a `v-if` per class.
+```toml
+# Explicit allow-list, used when CORS_BE_NAUGHTY is false
+CORS_ALLOW_ORIGINS = ["http://localhost:5173", "https://fantasy.example"]
+
+# Be naughty: allow any Origin whose host matches the Host the request arrived on.
+# Handy behind changing tunnels/LAN IPs at a convention. Not for public production.
+CORS_BE_NAUGHTY = false
+```
+
+- `CORS_BE_NAUGHTY = false`: Fiber's `middleware/cors` with `AllowOrigins` set from
+  `CORS_ALLOW_ORIGINS` (exact match), `AllowCredentials: true`.
+- `CORS_BE_NAUGHTY = true`: a small `middleware/naughty_cors.go` runs first. It parses the
+  `Origin` header, compares its host (and port) with `c.Hostname()`, and on a match echoes that
+  exact origin in `Access-Control-Allow-Origin` with `Vary: Origin`, then answers preflight
+  `OPTIONS` with 204. Never `*`. Requests that don't match fall through to the allow-list
+  middleware. (Fiber's `AllowOriginsFunc` only receives the origin string, so it can't compare
+  against the request host.)
+- `c.Hostname()` only honours `X-Forwarded-Host` when `TRUST_PROXY = true` and the peer is in
+  `TRUSTED_PROXIES`; otherwise it is the raw `Host` header.
+- The websocket pre-upgrade middleware calls the same `OriginAllowed`, so naughty mode applies
+  to sockets too. A missing Origin on a websocket upgrade is rejected (browsers always send one).
+- Both can be overridden by env vars (`FANTASY_CORS_BE_NAUGHTY=true`) through viper's
+  `AutomaticEnv`, so a deploy can flip it without editing the file.
+- Logs a `logrus.Warn` at startup when naughty mode is on.
+
+Trudge hard-codes its origin list in `cmd/trudge.go` and accepts any websocket origin;
+Fantasy does neither. Unit tests cover: allow-listed origin, unlisted origin, naughty match,
+naughty mismatch, spoofed `X-Forwarded-Host` with `TRUST_PROXY` off, and websocket upgrade in
+each mode.
 
 ---
 
-## 7. Delivery phases and branches
+## 6. API and socket messages
 
-Integration branch: **`feature/fantasy`** (off `main`). Phase branches come off it and merge
-back via PR. `main` only receives `feature/fantasy` once the game is playable end-to-end.
+Same split as Trudge: REST for commands (`router.Get/Post/Put` in `api_router.go` returning
+`P.RunController(c, &http2.XxxController{})`), websocket for broadcasts.
 
-| # | Branch                              | Scope                                                                                     | Done when |
-|---|-------------------------------------|-------------------------------------------------------------------------------------------|-----------|
-| 0 | `feature/fantasy`                   | This plan                                                                                 | Plan agreed |
-| 1 | `feature/fantasy-backend-scaffold`  | New Go module, copied+modernised config/auth/controller/router, health endpoint, create/join/rejoin/refresh, Dockerfile, CI `go build` + `go vet` + `go test -race` | `go test ./...` green; trudge `go build -mod=vendor ./apps/trudge/...` still green |
-| 1 | `feature/fantasy-frontend-scaffold` | `npm create vue@latest`, Bootstrap 5, icons, lint/format, API client + token refresh port, socket composable, Login view | `npm run build`, `lint`, `test:unit` green |
-| 2 | `feature/fantasy-domain`            | Domain model, state machine, NextTopic, vote/reaction/tally logic, repository, unit tests | Full round simulated in a Go test |
-| 3 | `feature/fantasy-realtime`          | Hub, token-authenticated ws, role-filtered broadcast, snapshot + deltas, throttled tallies | Integration test: 2 clients see correct role-filtered events |
-| 4 | `feature/fantasy-api`               | All REST commands from section 5 with role guards, validation, rate limits                | httptest coverage per endpoint/role |
-| 5 | `feature/fantasy-views-core`        | Admin, Audience, Staff views wired to stores                                              | Manual loop: submit → triage → topic |
-| 6 | `feature/fantasy-views-stage`       | Display and Director views, reveal animations, final tally, music/volume                  | Full playthrough on 5 browser windows |
-| 7 | `feature/fantasy-hardening`         | Snapshot/restore on restart, reconnection, load test (~200 audience sockets), profanity/length guards, docs, deploy config | Rehearsal game survives a backend restart |
+| Method | Path                                     | Role           | Controller                        |
+|--------|------------------------------------------|----------------|-----------------------------------|
+| GET    | /api/token/refresh                       | any            | RefreshTokenController            |
+| GET    | /api/game                                | any player     | GetGameController (role-filtered) |
+| POST   | /api/game/create                         | anyone         | CreateGameController (creator = Admin) |
+| POST   | /api/game/join                           | anyone         | JoinGameController                |
+| GET    | /api/game/rejoin                         | any player     | RejoinGameController              |
+| GET    | /api/game/quit                           | any player     | QuitGameController                |
+| POST   | /api/game/code                           | Admin          | SetGameCodeController             |
+| GET    | /api/game/kick/:uuid                     | Admin          | KickPlayerController              |
+| POST   | /api/game/role/assign                    | Admin          | AssignRoleController (+ TeamID)   |
+| POST   | /api/game/team/add                       | Admin          | AddTeamController                 |
+| POST   | /api/game/team/change/:id                | Admin          | ChangeTeamController              |
+| POST   | /api/game/team/remove/:id                | Admin          | RemoveTeamController              |
+| POST   | /api/game/submissions                    | Admin          | ToggleSubmissionsController       |
+| POST   | /api/game/submitter-names                | Admin          | ToggleSubmitterNamesController    |
+| POST   | /api/game/round/start                    | Admin          | StartRoundController (top item or by ID) |
+| POST   | /api/game/round/presenting               | Admin          | SetPresentingTeamController       |
+| PUT    | /api/game/submission/new                 | Audience       | NewSubmissionController           |
+| POST   | /api/game/submission/status/:id          | Staff, Admin   | ChangeSubmissionStatusController  |
+| POST   | /api/game/submission/vote/:id            | Staff          | StaffVoteController               |
+| POST   | /api/game/round/react                    | Audience       | ReactTopicController              |
+| POST   | /api/game/round/vote                     | Audience       | VoteTeamController                |
+| POST   | /api/game/volume                         | Admin, Display | SyncVolumeController              |
 
-Phases 1a/1b run in parallel; 5/6 can run in parallel once 3 and 4 land.
+Role checks happen in the processor/controller from `helpers.GetRequestPlayer(c)` against the
+**stored** player, not the JWT copy, so a role change takes effect immediately.
+
+Websocket: `GET /ws/:room/:player` as in Trudge, plus `?token=<jwt>`. The pre-upgrade middleware
+verifies the token, checks it matches `:player` and checks the origin, all before
+`websocket.New(...)` upgrades the connection. On connect the server sends `CODE <n>` and the settings messages, as Trudge does
+with `SUGGESTIONS_ENABLED`.
+
+Messages keep Trudge's envelope `{"Command": "...", "Data": {...}}`, one file per message in
+`app/messages`, sent with `wsCollection.HasTag(string(models.PLAYER_CLASS_X))`:
+
+`NEW_PLAYER`, `PLAYER_LEFT`, `ROLE_ASSIGNED`, `TEAMS_UPDATED`, `SUBMISSIONS_ENABLED`,
+`SUBMITTER_NAMES`, `NEW_SUBMISSION` (Staff, Admin), `SUBMISSION_UPDATED` (Staff, Admin),
+`TOPIC_REVEALED`, `PRESENTING_TEAM`, `REACTION_TALLY` (throttled), `VOTE_TALLY`
+(Admin, Display, throttled), `ROUND_RESULT`, `FINAL_TALLY`, `SET_VOLUME`.
+
+---
+
+## 7. Frontend views
+
+| View      | Built from (Trudge)            | Shows                                                                         |
+|-----------|--------------------------------|-------------------------------------------------------------------------------|
+| Login     | `Login.vue`                    | Room code + name; create game                                                 |
+| Admin     | `Leader.vue`, `gm/*`           | Game-code buttons (legal next steps only), `PlayerAssignment` with role + team, team editor (2-3), submission override, submissions toggle, **submitter names toggle**, live vote/reaction tallies, volume |
+| Display   | `Display.vue`, `display/*`     | Lobby + room code, topic card (author if enabled), presenting-team banner, reaction meter (Responses only), vote bars for N teams, round winner reveal, final podium (team + submission). Reuse `Sunburst`, `DisplayMessage`, `GameEnd` patterns and music |
+| Staff     | `God.vue`, `gods/*`            | Queue tabs (Pending / Approved / Rejected), approve/reject, upvote toggle, sorted by votes, "next up" preview |
+| Director  | `PartyMember.vue`, `party/*`   | Team name and teammates, current topic, "your team is presenting" cue, scoreboard |
+| Audience  | `Audience.vue`, `audience/*`   | Submission form (kind + text) while intake open (from `NewSuggestion.vue`); ±1 during Responses; team vote during Audience Vote (from `VoteOption.vue`); otherwise `PleaseWait` |
 
 ---
 
 ## 8. Things deliberately not carried over from Trudge
 
 - Committed session keys in `config-trudge.toml`: Fantasy reads keys from env vars and fails
-  fast if missing in production.
-- `CheckOrigin: return true` and UUID-in-path socket auth.
-- Map access in `MemoryGameRepository` outside the lock, and `GetByKey` before `Lock`
-  (data race): Fantasy locks first, then reads; `go test -race` enforces it.
-- Character/race/equipment/dice/map-maker features: not part of this game.
-- `vendor/` directory: not needed with a module proxy; add later only if offline Docker
-  builds require it.
+  fast in production when they are missing (dev still auto-generates, as `setup/keys.go` does).
+- Hard-coded CORS list and `CheckOrigin: return true`: replaced by section 5.
+- Websocket auth by UUID in the path alone: token now required too.
+- `MemoryGameRepository` map access outside the lock, and `GetByKey` before `Lock` in
+  processors: Fantasy keeps the same API, but `GetByKey`/`Save`/`Delete` take the repository
+  mutex, and processors lock before mutating. `go test -race` enforces this.
+- Characters, races, equipment, health, dice, maps, map maker: not part of this game.
+- `vendor/`: not needed with the module proxy; add later only if offline Docker builds need it.
 
 ---
 
-## 9. Open questions
+## 9. Delivery phases and branches
 
-1. **Scoring**: one point per round won (proposed), or points proportional to vote share?
-2. **Teams**: how many director teams typically, and does the admin name them or do directors?
-3. **Anonymity**: show submitter names on the Display and in the final "winning submission"?
-4. **Audience reactions**: allowed during the whole round, or only while teams are presenting?
-5. **FontAwesome**: is there a current Pro licence (needs an npm token for v6/v7 Pro), or use the free set?
-6. **DI container**: OK to replace `go-di-container` with explicit wiring, or keep the same
-   pattern for consistency with Trudge/PriceIsRight?
-7. **Hosting**: domain / CORS origins for production (Trudge uses `trudge.party`).
+Integration branch: **`feature/fantasy`** (off `main`). Phase branches come off it and merge
+back. `main` only receives `feature/fantasy` once the game is playable end-to-end.
+
+| # | Branch                              | Scope                                                                                     | Done when |
+|---|-------------------------------------|-------------------------------------------------------------------------------------------|-----------|
+| 0 | `feature/fantasy`                   | This plan                                                                                 | Plan agreed |
+| 1 | `feature/fantasy-backend-scaffold`  | New module; copy trudge skeleton (cmd, setup, bindings, routers, sockets, middleware, repositories, services) onto Fiber v3 + latest libs; Fiber safety config and tests (section 2a); configurable CORS + naughty mode; websocket with PING/PONG; create/join/rejoin/quit/refresh/kick/role; Dockerfile + compose | `go vet` + `go test -race` green; trudge still builds with `go build -mod=vendor ./apps/trudge/...` |
+| 1 | `feature/fantasy-frontend-scaffold` | create-vue on latest, reshaped to trudge layout; Bootstrap 5, FontAwesome Free; port TokenManager, WebSocket, Login, Game.vue role switch | `npm run build`, `lint`, `test:unit` green |
+| 2 | `feature/fantasy-models`            | Models, game codes + transitions, NextTopic, tally/scoring with ties, unit tests          | Full round simulated in a Go test |
+| 3 | `feature/fantasy-gameplay-api`      | Teams, submissions, staff triage, rounds, reactions, votes, toggles; processors + messages + controllers | httptest coverage per endpoint/role |
+| 4 | `feature/fantasy-views-core`        | Admin, Audience, Staff views                                                              | Manual loop: submit → triage → topic |
+| 5 | `feature/fantasy-views-stage`       | Display and Director views, reveals for 2 and 3 teams, final tally, music/volume          | Full playthrough on 5 browser windows, with 2 and with 3 teams |
+| 6 | `feature/fantasy-hardening`         | Snapshot/restore, reconnection, load test (~200 audience sockets), text length + rate limits, README, deploy config | Rehearsal game survives a backend restart |
+
+Phases 1 (backend) and 1 (frontend) run in parallel; 4 and 5 can run in parallel once 3 lands.
+
+---
+
+## 10. Decisions log
+
+| # | Question                    | Decision                                                                   |
+|---|-----------------------------|----------------------------------------------------------------------------|
+| 1 | Scoring                     | One point per round won; ties share the win; total votes break final ties |
+| 2 | Team count                  | 2 typical, 3 supported; N-team data model, `MAX_TEAMS` default 3           |
+| 3 | Submitter names             | Admin toggle, default off; server-side filtering; admin/staff always see   |
+| 4 | Reaction window             | Only while teams are presenting (`GAME_CODE_RESPONSES`)                    |
+| 5 | Icons                       | Free sets only; FontAwesome Free, keeping Trudge's registration pattern    |
+| 6 | DI and code style           | Keep `go-di-container`; mirror Trudge structure and style, backend and frontend |
+| 7 | Origins                     | Config allow-list + `CORS_BE_NAUGHTY` host-matching mode, shared by CORS and websocket |
+| 8 | HTTP framework              | Fiber v3 instead of gin; websocket behaviour kept; risks in section 2a mitigated by config + tests |
