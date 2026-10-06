@@ -15,7 +15,7 @@ func sendToClasses(roomKey string, command string, data interface{}, classes ...
 		return err
 	}
 
-	wsCollection := sockets.NewCollection(roomKey)
+	wsCollection := sockets.GetCollection(roomKey)
 
 	tags := make([]string, 0, len(classes))
 	for _, class := range classes {
@@ -34,7 +34,7 @@ func sendToPlayer(roomKey string, uuid string, command string, data interface{})
 		return err
 	}
 
-	wsCollection := sockets.NewCollection(roomKey)
+	wsCollection := sockets.GetCollection(roomKey)
 	socks := wsCollection.HasUUID(uuid)
 	wsCollection.SendText(msg, socks...)
 
@@ -47,7 +47,7 @@ func sendToAll(roomKey string, command string, data interface{}) error {
 		return err
 	}
 
-	wsCollection := sockets.NewCollection(roomKey)
+	wsCollection := sockets.GetCollection(roomKey)
 	wsCollection.SendText(msg, wsCollection.All()...)
 
 	return nil

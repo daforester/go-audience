@@ -54,25 +54,21 @@ func (C *EstablishSocketController) EstablishSocket(c fiber.Ctx) error {
 }
 
 func (C *EstablishSocketController) serve(conn *websocket.Conn, roomKey string, playerUUID string) {
-	socketCollection := sockets.NewCollection(roomKey)
-
 	ws := sockets.Connection{}.New(conn)
 	ws.Related["room"] = roomKey
 	ws.SetUUID(playerUUID)
 
-	// Add the connection before reading the player's class under the game lock, so a role
-	// change made at the same moment is applied to this connection's tags too
-	socketCollection.AddConnection(ws)
+	// Join before reading the player's class under the game lock, so a role change made at
+	// the same moment is applied to this connection's tags too
+	socketCollection := sockets.JoinCollection(roomKey, ws)
 
 	connected := C.welcome(socketCollection, ws, roomKey, playerUUID)
 	if connected {
 		sockets.ReadSocket(socketCollection, ws)
 	}
 
-	socketCollection.RemoveConnection(ws)
+	sockets.LeaveCollection(socketCollection, ws)
 	_ = ws.Close()
-
-	sockets.RemoveCollectionIfEmpty(socketCollection.Name)
 }
 
 func (C *EstablishSocketController) welcome(socketCollection *sockets.Collection, ws *sockets.Connection, roomKey string, playerUUID string) bool {
@@ -93,7 +89,7 @@ func (C *EstablishSocketController) welcome(socketCollection *sockets.Collection
 
 	socketCollection.SendText("CODE "+strconv.Itoa(game.GameCode), ws)
 
-	err := messages.ConnectedMessages(game, player)
+	err := messages.ConnectedMessages(game, player, ws)
 	if err != nil {
 		logrus.Error(err.Error())
 	}

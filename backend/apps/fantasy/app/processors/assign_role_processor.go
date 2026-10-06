@@ -78,11 +78,16 @@ func (P *AssignRoleProcessor) AssignPlayer(requester *models.Player, playerUUID 
 		return player.Copy(), err
 	}
 
+	err = messages.GameUpdateMessage(game)
+	if err != nil {
+		return player.Copy(), err
+	}
+
 	return player.Copy(), nil
 }
 
 func (P *AssignRoleProcessor) swapSocketTags(player *models.Player) error {
-	wsCollection := sockets.NewCollection(player.RoomKey)
+	wsCollection := sockets.GetCollection(player.RoomKey)
 	socks := wsCollection.HasUUID(player.UUID)
 	for _, sock := range socks {
 		_, err := sock.SwapTags(models.FantasyPlayerClassesStrings, []string{string(player.Class)})

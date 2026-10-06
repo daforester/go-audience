@@ -41,6 +41,49 @@ func NewCollection(name string) *Collection {
 	return c
 }
 
+// GetCollection returns the room's collection without registering one. Use it to send:
+// a room nobody is connected to gets an empty collection that is never stored.
+func GetCollection(name string) *Collection {
+	lockCollections.Lock()
+	defer lockCollections.Unlock()
+
+	ec, exists := WebSocketCollections[name]
+	if exists {
+		return ec
+	}
+
+	c := new(Collection)
+	c.Name = name
+	return c
+}
+
+// JoinCollection adds the connection to the room's collection, creating it if needed.
+// Done under the collections lock so it cannot race LeaveCollection removing the room.
+func JoinCollection(name string, connection *Connection) *Collection {
+	lockCollections.Lock()
+	defer lockCollections.Unlock()
+
+	c, exists := WebSocketCollections[name]
+	if !exists {
+		c = new(Collection)
+		c.Name = name
+		WebSocketCollections[name] = c
+	}
+	c.AddConnection(connection)
+	return c
+}
+
+// LeaveCollection removes the connection, and the room's collection once it is empty
+func LeaveCollection(collection *Collection, connection *Connection) {
+	lockCollections.Lock()
+	defer lockCollections.Unlock()
+
+	collection.RemoveConnection(connection)
+	if collection.Count() == 0 && WebSocketCollections[collection.Name] == collection {
+		delete(WebSocketCollections, collection.Name)
+	}
+}
+
 func LockCollections() {
 	lockCollections.Lock()
 }

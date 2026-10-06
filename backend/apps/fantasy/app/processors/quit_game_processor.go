@@ -60,6 +60,9 @@ func (P *QuitGameProcessor) QuitGame(requester *models.Player) error {
 		game.Updated = time.Now()
 		game.RemovePlayer(player)
 		err = P.gameRepository.Save(game)
+		if err == nil && player.Class == models.PLAYER_CLASS_DIRECTOR {
+			err = messages.GameUpdateMessage(game)
+		}
 	}
 
 	if err != nil {

@@ -15,6 +15,7 @@ type Game struct {
 	SubmissionsEnabled bool
 	ShowSubmitterNames bool
 	Volume             int
+	LastSubmission     map[string]time.Time `json:"-"`
 	Created            time.Time
 	Updated            time.Time
 	Deleted            *time.Time

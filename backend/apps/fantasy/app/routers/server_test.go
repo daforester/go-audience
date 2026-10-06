@@ -1,6 +1,7 @@
 package routers
 
 import (
+	"bitbucket.org/daforester/go-audience/apps/fantasy/app/sockets"
 	"bitbucket.org/daforester/go-audience/apps/fantasy/bindings"
 	"bitbucket.org/daforester/go-audience/apps/fantasy/repositories"
 	"bitbucket.org/daforester/go-audience/apps/fantasy/setup"
@@ -49,11 +50,28 @@ func newTestServer(t *testing.T, settings map[string]interface{}) *testServer {
 	}
 	setup.Keys()
 
+	// Config is global: before the next test resets it, wait for this test's sockets to close
+	t.Cleanup(func() { waitForSocketsClosed(t) })
+
 	container := di.New()
 	bindings.Register(container, bindings.FLAG_NONE)
 	repo := container.Make((*repositories.GameRepository)(nil)).(*repositories.MemoryGameRepository)
 
 	return &testServer{t, NewServer(container), repo}
+}
+
+func waitForSocketsClosed(t *testing.T) {
+	deadline := time.Now().Add(5 * time.Second)
+	for time.Now().Before(deadline) {
+		sockets.LockCollections()
+		open := len(sockets.WebSocketCollections)
+		sockets.UnlockCollections()
+		if open == 0 {
+			return
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	t.Error("websockets still open after the test finished")
 }
 
 func (s *testServer) do(method string, path string, token string, body interface{}, headers map[string]string) (int, map[string]interface{}, http.Header) {
@@ -371,6 +389,9 @@ func TestWebSocket(t *testing.T) {
 	if msg := readText(t, conn); msg != "CODE 20" {
 		t.Fatalf("expected game code on connect, got %q", msg)
 	}
+	if msg := readText(t, conn); !strings.HasPrefix(msg, `{"Command":"GAME_UPDATE"`) {
+		t.Fatalf("expected the player's game view on connect, got %q", msg)
+	}
 
 	_ = conn.WriteMessage(fws.TextMessage, []byte("PING 123"))
 	if msg := readText(t, conn); msg != "PONG 123" {
@@ -382,6 +403,7 @@ func TestWebSocket(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	readText(t, big)
 	readText(t, big)
 	_ = big.WriteMessage(fws.TextMessage, bytes.Repeat([]byte("x"), 10000))
 	_ = big.SetReadDeadline(time.Now().Add(3 * time.Second))

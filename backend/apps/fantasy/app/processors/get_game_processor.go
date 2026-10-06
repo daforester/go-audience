@@ -1,6 +1,7 @@
 package processors
 
 import (
+	"bitbucket.org/daforester/go-audience/apps/fantasy/app/messages"
 	"bitbucket.org/daforester/go-audience/apps/fantasy/models"
 	"bitbucket.org/daforester/go-audience/apps/fantasy/repositories"
 )
@@ -34,5 +35,5 @@ func (P *GetGameProcessor) GetGame(requester *models.Player) (*models.GameView, 
 		return nil, nil, ErrPlayerNotFound
 	}
 
-	return game.ViewFor(player), player.Copy(), nil
+	return messages.View(game, player), player.Copy(), nil
 }

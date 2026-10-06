@@ -56,5 +56,13 @@ func (P *KickPlayerProcessor) KickPlayer(requester *models.Player, uuid string) 
 		return err
 	}
 
+	if player.Class == models.PLAYER_CLASS_DIRECTOR {
+		err = messages.GameUpdateMessage(game)
+	}
+
+	if err != nil {
+		return err
+	}
+
 	return nil
 }
