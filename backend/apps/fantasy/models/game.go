@@ -1,16 +1,23 @@
 package models
 
-import "time"
+import (
+	"errors"
+	"time"
+)
 
 type Game struct {
-	Key      string
-	GameCode int
-	Players  []*Player
-	Teams    []*Team
-	Volume   int
-	Created  time.Time
-	Updated  time.Time
-	Deleted  *time.Time
+	Key                string
+	GameCode           int
+	Players            []*Player
+	Teams              []*Team
+	Submissions        []*Submission
+	Rounds             []*Round
+	SubmissionsEnabled bool
+	ShowSubmitterNames bool
+	Volume             int
+	Created            time.Time
+	Updated            time.Time
+	Deleted            *time.Time
 }
 
 func NewGame() *Game {
@@ -18,6 +25,8 @@ func NewGame() *Game {
 	game.GameCode = GAME_CODE_LOBBY
 	game.Players = make([]*Player, 0)
 	game.Teams = make([]*Team, 0)
+	game.Submissions = make([]*Submission, 0)
+	game.Rounds = make([]*Round, 0)
 	game.Volume = 50
 	return game
 }
@@ -101,6 +110,24 @@ func (g *Game) GetTeam(id string) *Team {
 	return nil
 }
 
+func (g *Game) AddTeam(team *Team) {
+	g.Teams = append(g.Teams, team)
+}
+
+// RemoveTeam removes the team, its directors return to the audience
+func (g *Game) RemoveTeam(id string) {
+	for i, t := range g.Teams {
+		if t.ID == id {
+			g.Teams = append(g.Teams[:i], g.Teams[i+1:]...)
+			break
+		}
+	}
+	for _, p := range g.GetTeamDirectors(id) {
+		p.Class = PLAYER_CLASS_AUDIENCE
+		p.TeamID = ""
+	}
+}
+
 func (g *Game) GetTeamDirectors(teamID string) []*Player {
 	var players []*Player
 	for _, player := range g.GetDirectors() {
@@ -117,4 +144,168 @@ func (g *Game) CopyTeams() []*Team {
 		teams = append(teams, t.Copy())
 	}
 	return teams
+}
+
+func (g *Game) GetSubmission(id string) *Submission {
+	for _, s := range g.Submissions {
+		if s.ID == id {
+			return s
+		}
+	}
+	return nil
+}
+
+func (g *Game) AddSubmission(submission *Submission) {
+	g.Submissions = append(g.Submissions, submission)
+}
+
+// NextTopic is the approved submission with the most staff votes, oldest first on a tie
+func (g *Game) NextTopic() *Submission {
+	var next *Submission
+	for _, s := range g.Submissions {
+		if s.Status != SUBMISSION_STATUS_APPROVED {
+			continue
+		}
+		if next == nil ||
+			s.StaffVoteCount() > next.StaffVoteCount() ||
+			(s.StaffVoteCount() == next.StaffVoteCount() && s.Created.Before(next.Created)) {
+			next = s
+		}
+	}
+	return next
+}
+
+func (g *Game) GetCurrentRound() *Round {
+	if len(g.Rounds) == 0 {
+		return nil
+	}
+	return g.Rounds[len(g.Rounds)-1]
+}
+
+// RoundInProgress reports whether a round has started and its result is not yet shown
+func (g *Game) RoundInProgress() bool {
+	return g.GameCode == GAME_CODE_TOPIC_REVEAL ||
+		g.GameCode == GAME_CODE_RESPONSES ||
+		g.GameCode == GAME_CODE_AUDIENCE_VOTE
+}
+
+// ReadyForRound checks there are at least two teams and every team has a director
+func (g *Game) ReadyForRound() error {
+	if len(g.Teams) < 2 {
+		return errors.New("at least two director teams are needed")
+	}
+	for _, t := range g.Teams {
+		if len(g.GetTeamDirectors(t.ID)) == 0 {
+			return errors.New("team " + t.Name + " has no directors")
+		}
+	}
+	return nil
+}
+
+// StartRound plays the submission as the next topic. Teams present in an order that
+// rotates each round, so no team always goes first.
+func (g *Game) StartRound(submission *Submission) *Round {
+	number := len(g.Rounds) + 1
+
+	order := make([]string, 0, len(g.Teams))
+	for i := range g.Teams {
+		order = append(order, g.Teams[(i+number-1)%len(g.Teams)].ID)
+	}
+
+	now := time.Now()
+	submission.Status = SUBMISSION_STATUS_PLAYED
+	submission.Played = &now
+
+	round := NewRound(number, submission.ID, order)
+	g.Rounds = append(g.Rounds, round)
+	return round
+}
+
+// DecideRound awards the round to the teams with the most votes. Only counts once.
+func (g *Game) DecideRound() *Round {
+	round := g.GetCurrentRound()
+	if round == nil || round.Decided {
+		return round
+	}
+
+	round.Decided = true
+	round.WinnerTeamIDs = round.Winners()
+	round.PresentingTeam = ""
+
+	for teamID, votes := range round.Tally() {
+		if team := g.GetTeam(teamID); team != nil {
+			team.TotalVotes += votes
+		}
+	}
+	for _, teamID := range round.WinnerTeamIDs {
+		if team := g.GetTeam(teamID); team != nil {
+			team.RoundWins++
+		}
+	}
+
+	return round
+}
+
+// FinalWinners are the teams with the most round wins. Total votes break a tie; if teams
+// are still level they are joint winners.
+func (g *Game) FinalWinners() []string {
+	winners := make([]string, 0)
+	var best *Team
+	for _, t := range g.Teams {
+		if best == nil || t.RoundWins > best.RoundWins ||
+			(t.RoundWins == best.RoundWins && t.TotalVotes > best.TotalVotes) {
+			best = t
+		}
+	}
+	if best == nil || (best.RoundWins == 0 && best.TotalVotes == 0) {
+		return winners
+	}
+	for _, t := range g.Teams {
+		if t.RoundWins == best.RoundWins && t.TotalVotes == best.TotalVotes {
+			winners = append(winners, t.ID)
+		}
+	}
+	return winners
+}
+
+// WinningSubmission is the played submission with the best net audience reaction.
+// Ties go to the one with more reactions overall, then the one played first.
+func (g *Game) WinningSubmission() *Submission {
+	var best *Submission
+	for _, s := range g.Submissions {
+		if s.Status != SUBMISSION_STATUS_PLAYED || s.Played == nil {
+			continue
+		}
+		if best == nil {
+			best = s
+			continue
+		}
+		switch {
+		case s.NetScore() > best.NetScore():
+			best = s
+		case s.NetScore() < best.NetScore():
+		case len(s.Reactions) > len(best.Reactions):
+			best = s
+		case len(s.Reactions) == len(best.Reactions) && s.Played.Before(*best.Played):
+			best = s
+		}
+	}
+	return best
+}
+
+// Reset returns the game to the lobby, keeping players, teams and the submission queue
+func (g *Game) Reset() {
+	g.GameCode = GAME_CODE_LOBBY
+	g.Rounds = make([]*Round, 0)
+	for _, t := range g.Teams {
+		t.RoundWins = 0
+		t.TotalVotes = 0
+	}
+	for _, s := range g.Submissions {
+		if s.Status == SUBMISSION_STATUS_PLAYED {
+			s.Status = SUBMISSION_STATUS_APPROVED
+			s.Played = nil
+			s.Reactions = make(map[string]int)
+		}
+	}
 }
