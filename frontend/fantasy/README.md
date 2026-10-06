@@ -17,7 +17,18 @@ One page serves every role, chosen by the admin in the player list:
 
 ## Development
 
-Run the backend with the testing config (API on port 18090):
+The quickest start is the dev compose file in the repository root, which runs the backend
+(rebuilt on change by air) and this dev server (hot reload) from your checkout:
+
+```sh
+docker compose -f docker-compose-fantasy-dev.yml up
+```
+
+Then open http://localhost:5173 (API on http://localhost:18090). Stop with
+`docker compose -f docker-compose-fantasy-dev.yml down` (add `-v` to clear caches and
+saved games).
+
+Without Docker, run the backend with the testing config (API on port 18090):
 
 ```sh
 cd backend/apps/fantasy

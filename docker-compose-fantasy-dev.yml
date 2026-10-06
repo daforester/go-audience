@@ -1,0 +1,69 @@
+# Fantasy Furry Convention: local development
+#
+#   docker compose -f docker-compose-fantasy-dev.yml up
+#
+# Frontend: http://localhost:5173   API: http://localhost:18090/api
+#
+# Both services run from the mounted source and reload on change: the backend through
+# air, the frontend through the Vite dev server. Session keys are generated on each
+# backend start (dev mode), so players need to rejoin after the backend restarts; set
+# FANTASY_SESSION_AUTHKEY / FANTASY_SESSION_ENCKEY in your environment to keep them.
+
+name: fantasy-dev
+
+services:
+  backend:
+    image: golang:1.27
+    working_dir: /src
+    command:
+      - sh
+      - -c
+      - >-
+        go install github.com/air-verse/air@latest &&
+        air
+        --build.cmd 'go build -o /tmp/fantasy/fantasy ./cmd/fantasy.go'
+        --build.bin '/tmp/fantasy/fantasy'
+        --build.args_bin '-config,/config/config-testing-fantasy.toml,-state,/data/fantasy-game.dat'
+        --build.include_ext 'go'
+        --build.exclude_regex '_test.go'
+        --build.poll true
+        --build.poll_interval 500
+        --tmp_dir /tmp/air
+    environment:
+      - FANTASY_SESSION_AUTHKEY
+      - FANTASY_SESSION_ENCKEY
+      - GOFLAGS=-buildvcs=false
+    volumes:
+      - ./backend/apps/fantasy:/src
+      - ./backend/config-testing-fantasy.toml:/config/config-testing-fantasy.toml:ro
+      - fantasy-go-mod:/go/pkg/mod
+      - fantasy-go-build:/root/.cache/go-build
+      - fantasy-go-bin:/go/bin
+      - fantasy-data:/data
+    ports:
+      - "18090:18090"
+
+  frontend:
+    image: node:24
+    working_dir: /app
+    command: sh -c "npm ci && npm run dev -- --host 0.0.0.0 --port 5173 --strictPort"
+    environment:
+      # The browser runs on the host, so it reaches the API through the published port
+      - VITE_API_URL=http://localhost:18090/api
+      - VITE_WS_URL=ws://localhost:18090/ws
+      - FANTASY_DEV_POLLING=1
+    volumes:
+      - ./frontend/fantasy:/app
+      # Keep the container's own node_modules: native tooling differs from the host's
+      - fantasy-node-modules:/app/node_modules
+    ports:
+      - "5173:5173"
+    depends_on:
+      - backend
+
+volumes:
+  fantasy-go-mod:
+  fantasy-go-build:
+  fantasy-go-bin:
+  fantasy-data:
+  fantasy-node-modules:
