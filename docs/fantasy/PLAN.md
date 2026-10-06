@@ -149,19 +149,40 @@ router.Post("/api/game/round/vote", func(c fiber.Ctx) error {
 | `CODE <n>` + settings messages on connect               | Unchanged                                                         |
 | `PING`/`PONG` text keepalive in `ReadSocket`            | Unchanged                                                         |
 | Blocking read loop, then remove connection + empty collection | Unchanged; the handler blocks in `ReadSocket` exactly as now  |
-| Room/player from path params                            | `conn.Params("room")`; the contrib `*websocket.Conn` is allocated per upgrade and not reused, so these stay valid for the socket's lifetime |
+| Room/player from path params                            | Read through the copying helpers (rule below) and stored as copies on the `Connection`, never as references into the request |
 
 **Security risks Fiber introduces, and how Fantasy closes each one:**
 
-1. **fasthttp buffer reuse.** By default, strings returned by `c.Params()`, `c.Body()`,
-   `c.Get()` etc. are only valid until the handler returns; the memory is then reused for
-   another request. Fantasy stores request strings in long-lived models (player names,
-   submission text) and hands them to socket goroutines, so without care one user's data
-   could silently become another's. **Fix: `fiber.Config{Immutable: true}`.** Plus a test that
-   joins two players back-to-back and asserts neither name changes.
+1. **fasthttp buffer reuse.** Strings and byte slices returned by `c.Params()`, `c.Query()`,
+   `c.Get()`, `c.Cookies()`, `c.FormValue()` and `c.Body()` point into a request buffer that
+   fasthttp reuses once the handler returns. Fantasy keeps request data in long-lived models
+   (player names, submission text) and hands it to socket goroutines, so a retained reference
+   could silently turn one user's data into another's.
+
+   **Rule: data from requests is copied, never pointed to.**
+   - `services/fiberhelper` provides the only accessors controllers use:
+     `fiberhelper.Param(c, "uuid")`, `Query`, `Header`, `Cookie`, `FormValue` (each returns
+     `strings.Clone(...)`) and `Body(c)` (returns `bytes.Clone(c.Body())`). Bearer tokens are
+     read the same way in `fiberhelper.GetBearerToken`.
+   - JSON bodies are bound into a fresh request struct (`app/requests/*.go`, as in Trudge) with
+     the default `encoding/json` decoder, which allocates new strings. The decoder is pinned in
+     `fiber.Config`, so swapping in a zero-copy decoder that could alias the buffer has to be
+     a deliberate change.
+   - Processors build **new** model values from request fields
+     (`player.Name = request.Name`, `submission.Text = request.Text`). They never store a
+     pointer to a request struct, to the JWT-decoded `*models.Player`, or to anything reachable
+     from `fiber.Ctx`. The stored player is always looked up from the repository by UUID.
+   - `fiber.Config{Immutable: false}` (the default) on purpose, so tests exercise the real
+     buffer reuse and catch a missed copy, rather than Immutable hiding it.
+   - Enforcement: a unit test in `services/fiberhelper` greps `app/controllers` and `middleware`
+     and fails on direct `c.Params(`/`c.Query(`/`c.Get(`/`c.Body(`/`c.Cookies(`/`c.FormValue(`
+     calls. A `-race` integration test fires concurrent joins/submissions with distinct
+     payloads and asserts every stored name and text is exactly what was sent.
 2. **Ctx pooling.** `fiber.Ctx` is recycled after the handler. Controllers are created per
-   request by `RunController`, so they never outlive it; rule: never capture `c` in a
-   goroutine or store it in a model, socket `Related` map or processor.
+   request by `RunController`, so they never outlive it. Rule: never capture `c` in a
+   goroutine or store it in a model, a socket `Related` map or a processor; pass copied values
+   instead. The websocket handler copies `room`/`player` out of the upgrade request into the
+   `Connection` before it starts reading.
 3. **Websocket origin check defaults to open.** contrib `websocket.Config.Origins` empty means
    *any origin*. Fantasy never relies on it. The pre-upgrade middleware always runs the same
    `setup.OriginAllowed(c)` check as CORS (section 5), and rejects with 403 before upgrading.
@@ -478,7 +499,7 @@ back. `main` only receives `feature/fantasy` once the game is playable end-to-en
 | # | Branch                              | Scope                                                                                     | Done when |
 |---|-------------------------------------|-------------------------------------------------------------------------------------------|-----------|
 | 0 | `feature/fantasy`                   | This plan                                                                                 | Plan agreed |
-| 1 | `feature/fantasy-backend-scaffold`  | New module; copy trudge skeleton (cmd, setup, bindings, routers, sockets, middleware, repositories, services) onto Fiber v3 + latest libs; Fiber safety config and tests (section 2a); configurable CORS + naughty mode; websocket with PING/PONG; create/join/rejoin/quit/refresh/kick/role; Dockerfile + compose | `go vet` + `go test -race` green; trudge still builds with `go build -mod=vendor ./apps/trudge/...` |
+| 1 | `feature/fantasy-backend-scaffold`  | New module; copy trudge skeleton (cmd, setup, bindings, routers, sockets, middleware, repositories, services) onto Fiber v3 + latest libs; Fiber safety config, copying `fiberhelper` accessors and tests (section 2a); configurable CORS + naughty mode; websocket with PING/PONG; create/join/rejoin/quit/refresh/kick/role; Dockerfile + compose | `go vet` + `go test -race` green; trudge still builds with `go build -mod=vendor ./apps/trudge/...` |
 | 1 | `feature/fantasy-frontend-scaffold` | create-vue on latest, reshaped to trudge layout; Bootstrap 5, FontAwesome Free; port TokenManager, WebSocket, Login, Game.vue role switch | `npm run build`, `lint`, `test:unit` green |
 | 2 | `feature/fantasy-models`            | Models, game codes + transitions, NextTopic, tally/scoring with ties, unit tests          | Full round simulated in a Go test |
 | 3 | `feature/fantasy-gameplay-api`      | Teams, submissions, staff triage, rounds, reactions, votes, toggles; processors + messages + controllers | httptest coverage per endpoint/role |
@@ -502,3 +523,4 @@ Phases 1 (backend) and 1 (frontend) run in parallel; 4 and 5 can run in parallel
 | 6 | DI and code style           | Keep `go-di-container`; mirror Trudge structure and style, backend and frontend |
 | 7 | Origins                     | Config allow-list + `CORS_BE_NAUGHTY` host-matching mode, shared by CORS and websocket |
 | 8 | HTTP framework              | Fiber v3 instead of gin; websocket behaviour kept; risks in section 2a mitigated by config + tests |
+| 9 | Request data                | Always copied (`strings.Clone`/`bytes.Clone` via `fiberhelper`), never referenced; `Immutable` left off so tests catch misses |
