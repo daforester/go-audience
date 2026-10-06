@@ -1,0 +1,25 @@
+@keyframes suggestionText {
+  0% {
+    opacity: 0.8;
+    text-shadow: 0 0 10px black;
+    transform: scale(1.2);
+  }
+  20% {
+    opacity: 0.64;
+    text-shadow: unset;
+    transform: scale(1);
+  }
+  100% {
+    opacity: 0;
+    text-shadow: unset;
+    transform: scale(1);
+  }
+}
+
+.suggestion {
+  animation-name: suggestionText;
+  animation-duration:5s;
+  animation-iteration-count: 1;
+  animation-timing-function: linear;
+  animation-fill-mode: forwards;
+}

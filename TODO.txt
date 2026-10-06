@@ -1,0 +1,27 @@
+CHANGES / SUGGESTION LOG
+
+DONE
+Sign up screen - Room Code box - white bg
+When button pressed clear submission immediately not after network ack
+Display quest on main
+Display bar for votes % of total
+Increase font size on player presentation
+God icon - change to Lightning bolt*, cats egyptians
+Split the choices by player type, followed by the final result
+DM ability to change answers.
+Block dice roll from other players once rolled
+Update player display to have their details and then please wait...
+5 Hearts as health bar to give idea of risk
+XP for everyone, correct votes, votes earned, etc
+Music when waiting on things
+Let audience submit suggestions, pop up and fade
+
+
+PENDING
+Reveal top XP at end
+Animations to represent travelling, indiana jones red line.
+
+
+MAYBE
+SFW mode filter.
+Have 1 audience suggestion selected at random added to options

@@ -1,0 +1,42 @@
+@keyframes toasterText {
+  0% {
+    opacity: 0;
+    transform: translate(0, 50px);
+  }
+  10%, 100% {
+    opacity: 1;
+    transform: translate(0, 0);
+  }
+  5% {
+    opacity: 1;
+    transform: translate(0, -25px);
+  }
+}
+.toaster {
+  animation-name: toasterText;
+  animation-duration:5s;
+  animation-iteration-count: infinite;
+  animation-timing-function: ease;
+  animation-fill-mode: both;
+  display: inline-block;
+}
+@for $i from 1 through 20 {
+  .toaster:nth-child(#{$i}) {
+    animation-delay: #{calc($i / 8)}s;
+  }
+}
+.toaster-once {
+  animation-iteration-count: 1 !important;
+}
+.toaster-delay-1 {
+  animation-delay: 1s !important;
+}
+.toaster-delay-2 {
+  animation-delay: 2s !important;
+}
+.toaster-delay-3 {
+  animation-delay: 3s !important;
+}
+.toaster-delay-4 {
+  animation-delay: 4s !important;
+}
