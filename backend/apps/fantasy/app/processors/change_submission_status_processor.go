@@ -23,7 +23,8 @@ func (P ChangeSubmissionStatusProcessor) New(gameRepository repositories.GameRep
 }
 
 // ChangeSubmissionStatus lets staff approve, reject or return a submission to the queue.
-// Played submissions belong to their round and cannot be changed.
+// When an admin rejects a submission it is vetoed: staff cannot bring it back, only an
+// admin can. Played submissions belong to their round and cannot be changed.
 func (P *ChangeSubmissionStatusProcessor) ChangeSubmissionStatus(requester *models.Player, submissionID string, status models.SubmissionStatus) (*models.SubmissionView, error) {
 	if status != models.SUBMISSION_STATUS_PENDING &&
 		status != models.SUBMISSION_STATUS_APPROVED &&
@@ -53,7 +54,18 @@ func (P *ChangeSubmissionStatusProcessor) ChangeSubmissionStatus(requester *mode
 		return nil, fmt.Errorf("%w: submission has already been played", ErrInvalid)
 	}
 
+	isAdmin := player.Class == models.PLAYER_CLASS_ADMIN
+	if submission.Vetoed && !isAdmin {
+		return nil, fmt.Errorf("%w: vetoed by the admin", ErrForbidden)
+	}
+
 	submission.Status = status
+	if isAdmin {
+		submission.Vetoed = status == models.SUBMISSION_STATUS_REJECTED
+	}
+	if status == models.SUBMISSION_STATUS_REJECTED && game.PinnedTopicID == submission.ID {
+		game.PinnedTopicID = ""
+	}
 	game.Updated = time.Now()
 	err := P.gameRepository.Save(game)
 

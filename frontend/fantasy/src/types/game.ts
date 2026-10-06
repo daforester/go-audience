@@ -44,6 +44,7 @@ export interface Submission {
   AuthorName?: string;
   AuthorUUID?: string;
   Status: SubmissionStatus;
+  Vetoed?: boolean;
   StaffVotes: number;
   MyStaffVote?: boolean;
   Ups: number;
@@ -83,6 +84,8 @@ export interface Game {
   Submissions?: Submission[];
   MySubmissions?: Submission[];
   NextTopicID?: string;
+  PinnedTopicID?: string;
+  TopPickIDs?: string[];
   Round?: Round;
   Final?: Final;
 }

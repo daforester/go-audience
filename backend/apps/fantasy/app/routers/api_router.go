@@ -94,6 +94,10 @@ func (P *APIRouter) RegisterPublicRoutes(router *fiber.App) {
 		return P.RunController(c, &http2.StartRoundController{})
 	})
 
+	router.Post("/api/game/submission/pin", func(c fiber.Ctx) error {
+		return P.RunController(c, &http2.PinTopicController{})
+	})
+
 	router.Post("/api/game/round/presenting", func(c fiber.Ctx) error {
 		return P.RunController(c, &http2.SetPresentingTeamController{})
 	})

@@ -25,6 +25,7 @@ type SubmissionView struct {
 	AuthorName  string `json:",omitempty"`
 	AuthorUUID  string `json:",omitempty"`
 	Status      SubmissionStatus
+	Vetoed      bool `json:",omitempty"`
 	StaffVotes  int
 	MyStaffVote bool `json:",omitempty"`
 	Ups         int
@@ -64,6 +65,8 @@ type GameView struct {
 	Submissions        []SubmissionView `json:",omitempty"`
 	MySubmissions      []SubmissionView `json:",omitempty"`
 	NextTopicID        string           `json:",omitempty"`
+	PinnedTopicID      string           `json:",omitempty"`
+	TopPickIDs         []string         `json:",omitempty"`
 	Round              *RoundView       `json:",omitempty"`
 	Final              *FinalView       `json:",omitempty"`
 }
@@ -98,9 +101,7 @@ func (g *Game) ViewFor(player *Player) *GameView {
 		for _, s := range g.Submissions {
 			view.Submissions = append(view.Submissions, *g.SubmissionViewFor(s, player))
 		}
-		if next := g.NextTopic(); next != nil {
-			view.NextTopicID = next.ID
-		}
+		view.NextTopicID, view.PinnedTopicID, view.TopPickIDs = g.QueueOrder()
 	}
 
 	if player.UUID != "" && player.Class == PLAYER_CLASS_AUDIENCE {
@@ -160,6 +161,7 @@ func (g *Game) SubmissionViewFor(s *Submission, player *Player) *SubmissionView 
 	}
 
 	if canModerate(player.Class) {
+		view.Vetoed = s.Vetoed
 		view.AuthorName = s.AuthorName
 		view.AuthorUUID = s.AuthorUUID
 		view.MyStaffVote = player.UUID != "" && s.StaffVotes[player.UUID]
@@ -203,4 +205,24 @@ func (g *Game) RoundViewFor(player *Player) *RoundView {
 	}
 
 	return view
+}
+
+// TopPickCount is how many of the staff's top picks the admin is shown
+const TopPickCount = 3
+
+// QueueOrder gives moderators the next topic, the admin's pin and the staff's top picks
+func (g *Game) QueueOrder() (string, string, []string) {
+	next := ""
+	if s := g.NextTopic(); s != nil {
+		next = s.ID
+	}
+	pinned := ""
+	if s := g.PinnedTopic(); s != nil {
+		pinned = s.ID
+	}
+	picks := make([]string, 0, TopPickCount)
+	for _, s := range g.TopPicks(TopPickCount) {
+		picks = append(picks, s.ID)
+	}
+	return next, pinned, picks
 }

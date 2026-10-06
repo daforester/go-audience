@@ -28,13 +28,15 @@
       </div>
     </div>
 
+    <TopPicks :game-code="gameCode" />
+
     <div class="row">
       <div class="col-lg-7">
         <div class="card-panel mb-3">
           <h2 class="h5">
             Submissions
           </h2>
-          <SubmissionQueue :game-code="gameCode" allow-play />
+          <SubmissionQueue :game-code="gameCode" />
         </div>
       </div>
       <div class="col-lg-5">
@@ -53,6 +55,7 @@ import { plural } from '@/libs/plural';
 import GameControls from '@/components/admin/GameControls.vue';
 import PlayerAssignment from '@/components/admin/PlayerAssignment.vue';
 import TeamEditor from '@/components/admin/TeamEditor.vue';
+import TopPicks from '@/components/admin/TopPicks.vue';
 import TopicCard from '@/components/display/TopicCard.vue';
 import SubmissionQueue from '@/components/staff/SubmissionQueue.vue';
 
@@ -65,6 +68,7 @@ export default defineComponent({
     SubmissionQueue,
     TeamEditor,
     TopicCard,
+    TopPicks,
   },
   mixins: [PlayerView],
   methods: {

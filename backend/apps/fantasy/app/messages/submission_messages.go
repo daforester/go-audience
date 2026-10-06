@@ -10,12 +10,17 @@ func sendToModerators(game *models.Game, command string, submission *models.Subm
 		if player.Class != models.PLAYER_CLASS_ADMIN && player.Class != models.PLAYER_CLASS_STAFF {
 			continue
 		}
+		next, pinned, picks := game.QueueOrder()
 		err := sendToPlayer(game.Key, player.UUID, command, struct {
-			Submission  *models.SubmissionView
-			NextTopicID string
+			Submission    *models.SubmissionView
+			NextTopicID   string
+			PinnedTopicID string
+			TopPickIDs    []string
 		}{
 			game.SubmissionViewFor(submission, player),
-			nextTopicID(game),
+			next,
+			pinned,
+			picks,
 		})
 		if err != nil {
 			return err
@@ -24,11 +29,15 @@ func sendToModerators(game *models.Game, command string, submission *models.Subm
 	return nil
 }
 
-func nextTopicID(game *models.Game) string {
-	if next := game.NextTopic(); next != nil {
-		return next.ID
-	}
-	return ""
+// QueueUpdatedMessage tells admin and staff the queue order changed, e.g. a pin. Must be
+// called with the game locked.
+func QueueUpdatedMessage(game *models.Game) error {
+	next, pinned, picks := game.QueueOrder()
+	return sendToClasses(game.Key, "QUEUE_UPDATED", map[string]interface{}{
+		"NextTopicID":   next,
+		"PinnedTopicID": pinned,
+		"TopPickIDs":    picks,
+	}, models.PLAYER_CLASS_ADMIN, models.PLAYER_CLASS_STAFF)
 }
 
 // NewSubmissionMessage tells admin and staff about a new submission. Must be called with

@@ -442,6 +442,7 @@ Same split as Trudge: REST for commands (`router.Get/Post/Put` in `api_router.go
 | PUT    | /api/game/submission/new                 | Audience       | NewSubmissionController           |
 | POST   | /api/game/submission/status/:id          | Staff, Admin   | ChangeSubmissionStatusController  |
 | POST   | /api/game/submission/vote/:id            | Staff          | StaffVoteController               |
+| POST   | /api/game/submission/pin                 | Admin          | PinTopicController (override next topic) |
 | POST   | /api/game/round/react                    | Audience       | ReactTopicController              |
 | POST   | /api/game/round/vote                     | Audience       | VoteTeamController                |
 | POST   | /api/game/volume                         | Admin, Display | SyncVolumeController              |
@@ -556,3 +557,8 @@ Where the build differs from, or adds to, the plan:
   typescript-eslint do not support TypeScript 7 yet. `npm audit` reports `braces` (via
   `@vue/eslint-config-typescript` and `fast-glob`), a lint-time-only dev dependency with no
   patched release; the app bundle does not include it. Node must be 24.15+ (or 22.22+).
+- **Admin top picks, veto and override**: stars are staff-only. The admin sees the staff's
+  top three approved submissions (play order) and can *Play now*, *Play next* (pin: the
+  pinned submission is revealed next, ahead of the staff ranking, even if still pending) or
+  *Veto*. An admin rejection is a veto: staff cannot restore it, only an admin can. Playing,
+  vetoing or resetting clears the pin.

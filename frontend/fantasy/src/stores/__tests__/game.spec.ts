@@ -99,6 +99,20 @@ describe('game store socket messages', () => {
     expect(store.Game.Players?.map((p) => p.UUID)).toEqual(['me']);
   });
 
+  it('follows the queue order, pins and vetoes', () => {
+    const store = useGameStore();
+    store.setGame(game({ Submissions: [] }));
+    store.sockMsg(msg('QUEUE_UPDATED', { NextTopicID: 'p1', PinnedTopicID: 'p1', TopPickIDs: ['a', 'b'] }));
+    expect(store.Game.PinnedTopicID).toBe('p1');
+    expect(store.Game.TopPickIDs).toEqual(['a', 'b']);
+
+    const vetoed = { ID: 'a', Kind: 'Other', Text: 'x', Status: 'Rejected', Vetoed: true, StaffVotes: 2, Ups: 0, Downs: 0, Net: 0, Created: '' };
+    store.sockMsg(msg('SUBMISSION_UPDATED', { Submission: vetoed, NextTopicID: 'b', PinnedTopicID: '', TopPickIDs: ['b'] }));
+    expect(store.Game.Submissions?.[0]?.Vetoed).toBe(true);
+    expect(store.Game.PinnedTopicID).toBe('');
+    expect(store.Game.TopPickIDs).toEqual(['b']);
+  });
+
   it('gives every team its own colour', () => {
     const store = useGameStore();
     store.setGame(game());

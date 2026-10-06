@@ -22,7 +22,8 @@ func (P StaffVoteProcessor) New(gameRepository repositories.GameRepository) *Sta
 	}
 }
 
-// StaffVote toggles the requester's upvote on a submission still in the queue
+// StaffVote toggles the requester's upvote on a submission still in the queue. Only staff
+// vote, so the top picks the admin sees are the staff's choice.
 func (P *StaffVoteProcessor) StaffVote(requester *models.Player, submissionID string) (*models.SubmissionView, error) {
 	game := P.gameRepository.GetByKey(requester.RoomKey)
 	if game == nil {
@@ -33,7 +34,7 @@ func (P *StaffVoteProcessor) StaffVote(requester *models.Player, submissionID st
 	defer P.gameRepository.Unlock(game)
 
 	player := game.GetPlayerByUUID(requester.UUID)
-	if player == nil || (player.Class != models.PLAYER_CLASS_STAFF && player.Class != models.PLAYER_CLASS_ADMIN) {
+	if player == nil || player.Class != models.PLAYER_CLASS_STAFF {
 		return nil, ErrForbidden
 	}
 

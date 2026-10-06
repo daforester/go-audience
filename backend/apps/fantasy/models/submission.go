@@ -45,6 +45,7 @@ type Submission struct {
 	Status     SubmissionStatus
 	StaffVotes map[string]bool // staff UUID -> voted
 	Reactions  map[string]int  // audience UUID -> +1 / -1
+	Vetoed     bool            // rejected by an admin; staff cannot bring it back
 	Created    time.Time
 	Played     *time.Time
 }
@@ -61,6 +62,11 @@ func NewSubmission(id string, author *Player, kind SubmissionKind, text string) 
 		Reactions:  make(map[string]int),
 		Created:    time.Now(),
 	}
+}
+
+// Eligible reports whether the submission can still become a topic
+func (S *Submission) Eligible() bool {
+	return S.Status == SUBMISSION_STATUS_PENDING || S.Status == SUBMISSION_STATUS_APPROVED
 }
 
 func (S *Submission) StaffVoteCount() int {

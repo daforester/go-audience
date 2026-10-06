@@ -22,6 +22,7 @@ func Register(app *di.App, flags flag) {
 	app.Bind((*processors2.KickPlayerProcessorInterface)(nil), &processors2.KickPlayerProcessor{})
 	app.Bind((*processors2.LoginProcessorInterface)(nil), &processors2.LoginProcessor{})
 	app.Bind((*processors2.NewSubmissionProcessorInterface)(nil), &processors2.NewSubmissionProcessor{})
+	app.Bind((*processors2.PinTopicProcessorInterface)(nil), &processors2.PinTopicProcessor{})
 	app.Bind((*processors2.QuitGameProcessorInterface)(nil), &processors2.QuitGameProcessor{})
 	app.Bind((*processors2.ReactTopicProcessorInterface)(nil), &processors2.ReactTopicProcessor{})
 	app.Bind((*processors2.SetGameCodeProcessorInterface)(nil), &processors2.SetGameCodeProcessor{})

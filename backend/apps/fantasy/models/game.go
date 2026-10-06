@@ -2,6 +2,7 @@ package models
 
 import (
 	"errors"
+	"sort"
 	"time"
 )
 
@@ -14,6 +15,7 @@ type Game struct {
 	Rounds             []*Round
 	SubmissionsEnabled bool
 	ShowSubmitterNames bool
+	PinnedTopicID      string
 	Volume             int
 	LastSubmission     map[string]time.Time `json:"-"`
 	Created            time.Time
@@ -160,20 +162,50 @@ func (g *Game) AddSubmission(submission *Submission) {
 	g.Submissions = append(g.Submissions, submission)
 }
 
-// NextTopic is the approved submission with the most staff votes, oldest first on a tie
-func (g *Game) NextTopic() *Submission {
-	var next *Submission
+// TopPicks are the approved submissions in the order they would be played: most staff
+// votes first, oldest first on a tie. At most n are returned, n <= 0 returns them all.
+func (g *Game) TopPicks(n int) []*Submission {
+	picks := make([]*Submission, 0)
 	for _, s := range g.Submissions {
-		if s.Status != SUBMISSION_STATUS_APPROVED {
-			continue
-		}
-		if next == nil ||
-			s.StaffVoteCount() > next.StaffVoteCount() ||
-			(s.StaffVoteCount() == next.StaffVoteCount() && s.Created.Before(next.Created)) {
-			next = s
+		if s.Status == SUBMISSION_STATUS_APPROVED {
+			picks = append(picks, s)
 		}
 	}
-	return next
+	sort.SliceStable(picks, func(i, j int) bool {
+		a, b := picks[i], picks[j]
+		if a.StaffVoteCount() != b.StaffVoteCount() {
+			return a.StaffVoteCount() > b.StaffVoteCount()
+		}
+		return a.Created.Before(b.Created)
+	})
+	if n > 0 && len(picks) > n {
+		picks = picks[:n]
+	}
+	return picks
+}
+
+// PinnedTopic is the submission the admin has chosen to play next, if it can still be played
+func (g *Game) PinnedTopic() *Submission {
+	if g.PinnedTopicID == "" {
+		return nil
+	}
+	s := g.GetSubmission(g.PinnedTopicID)
+	if s == nil || !s.Eligible() {
+		return nil
+	}
+	return s
+}
+
+// NextTopic is the admin's pinned submission if there is one, otherwise the staff's
+// top pick
+func (g *Game) NextTopic() *Submission {
+	if pinned := g.PinnedTopic(); pinned != nil {
+		return pinned
+	}
+	if picks := g.TopPicks(1); len(picks) > 0 {
+		return picks[0]
+	}
+	return nil
 }
 
 func (g *Game) GetCurrentRound() *Round {
@@ -216,6 +248,9 @@ func (g *Game) StartRound(submission *Submission) *Round {
 	now := time.Now()
 	submission.Status = SUBMISSION_STATUS_PLAYED
 	submission.Played = &now
+	if g.PinnedTopicID == submission.ID {
+		g.PinnedTopicID = ""
+	}
 
 	round := NewRound(number, submission.ID, order)
 	g.Rounds = append(g.Rounds, round)
@@ -298,6 +333,7 @@ func (g *Game) WinningSubmission() *Submission {
 func (g *Game) Reset() {
 	g.GameCode = GAME_CODE_LOBBY
 	g.Rounds = make([]*Round, 0)
+	g.PinnedTopicID = ""
 	for _, t := range g.Teams {
 		t.RoundWins = 0
 		t.TotalVotes = 0

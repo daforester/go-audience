@@ -21,10 +21,13 @@
                     :key="s.ID"
                     :submission="s"
                     :up-next="s.ID === game.NextTopicID"
-                    :can-play="allowPlay && canStartRound"
+                    :can-play="isAdmin && canStartRound"
+                    :is-admin="isAdmin"
+                    :pinned="s.ID === game.PinnedTopicID"
                     @vote="vote"
                     @status="setStatus"
                     @play="play"
+                    @pin="pin"
     />
   </div>
 </template>
@@ -41,12 +44,6 @@ export default defineComponent({
     SubmissionCard,
   },
   mixins: [PlayerView],
-  props: {
-    allowPlay: {
-      type: Boolean,
-      default: false,
-    },
-  },
   data() {
     return {
       Tab: 'Pending' as SubmissionStatus,
@@ -88,6 +85,9 @@ export default defineComponent({
       }
       return 'Nothing here.';
     },
+    isAdmin(): boolean {
+      return this.player.Class === 'Admin';
+    },
     canStartRound(): boolean {
       return this.gameCode === GameCodes.Intake || this.gameCode === GameCodes.RoundResult;
     },
@@ -101,6 +101,9 @@ export default defineComponent({
     },
     play(id: string) {
       this.gameRequest('post', '/game/round/start', { SubmissionID: id }).catch(() => {});
+    },
+    pin(id: string) {
+      this.gameRequest('post', '/game/submission/pin', { SubmissionID: id }).catch(() => {});
     },
   },
 });

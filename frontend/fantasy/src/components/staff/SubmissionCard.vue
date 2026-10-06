@@ -1,10 +1,15 @@
 <template>
   <div class="card-panel mb-2 submission" :class="{ 'up-next': upNext }">
     <div class="d-flex align-items-start gap-2">
-      <button class="btn btn-sm vote"
+      <span v-if="isAdmin" class="stars text-warning" :title="`${submission.StaffVotes} staff stars`">
+        <FontAwesomeIcon :icon="['fas', 'star']" />
+        <span class="d-block">{{ submission.StaffVotes }}</span>
+      </span>
+      <button v-else
+              class="btn btn-sm vote"
               :class="submission.MyStaffVote ? 'btn-warning' : 'btn-outline-warning'"
               :disabled="!canVote"
-              :title="submission.MyStaffVote ? 'Remove your upvote' : 'Upvote'"
+              :title="submission.MyStaffVote ? 'Remove your star' : 'Star'"
               @click="$emit('vote', submission.ID)"
       >
         <FontAwesomeIcon :icon="[submission.MyStaffVote ? 'fas' : 'far', 'star']" />
@@ -15,7 +20,9 @@
           <FontAwesomeIcon :icon="['fas', kindIcon]" />
           {{ kindLabel }}
           <template v-if="submission.AuthorName">&middot; {{ submission.AuthorName }}</template>
+          <span v-if="pinned" class="badge text-bg-dark ms-1">Admin pick</span>
           <span v-if="upNext" class="badge text-bg-primary ms-1">Up next</span>
+          <span v-if="submission.Vetoed" class="badge text-bg-danger ms-1">Vetoed by admin</span>
           <span v-if="submission.Status === 'Played'" class="badge text-bg-secondary ms-1">
             Played &middot; {{ submission.Net > 0 ? '+' : '' }}{{ submission.Net }}
           </span>
@@ -25,26 +32,35 @@
         </div>
       </div>
     </div>
-    <div v-if="submission.Status !== 'Played'" class="d-flex flex-wrap gap-1 mt-2 justify-content-end">
+    <div v-if="submission.Status !== 'Played' && (isAdmin || !submission.Vetoed)"
+         class="d-flex flex-wrap gap-1 mt-2 justify-content-end"
+    >
       <button v-if="submission.Status !== 'Approved'"
               class="btn btn-success btn-sm"
               @click="$emit('status', submission.ID, 'Approved')"
       >
         <FontAwesomeIcon :icon="['fas', 'check']" />
-        Approve
+        {{ submission.Vetoed ? 'Lift veto' : 'Approve' }}
       </button>
       <button v-if="submission.Status !== 'Rejected'"
               class="btn btn-outline-danger btn-sm"
               @click="$emit('status', submission.ID, 'Rejected')"
       >
         <FontAwesomeIcon :icon="['fas', 'xmark']" />
-        Reject
+        {{ isAdmin ? 'Veto' : 'Reject' }}
       </button>
       <button v-if="submission.Status !== 'Pending'"
               class="btn btn-outline-secondary btn-sm"
               @click="$emit('status', submission.ID, 'Pending')"
       >
         Back to queue
+      </button>
+      <button v-if="isAdmin && canVote"
+              class="btn btn-outline-dark btn-sm"
+              @click="$emit('pin', pinned ? '' : submission.ID)"
+      >
+        <FontAwesomeIcon :icon="['fas', 'thumbtack']" />
+        {{ pinned ? 'Unpin' : 'Play next' }}
       </button>
       <button v-if="canPlay"
               class="btn btn-primary btn-sm"
@@ -81,8 +97,16 @@ export default defineComponent({
       type: Boolean,
       default: false,
     },
+    isAdmin: {
+      type: Boolean,
+      default: false,
+    },
+    pinned: {
+      type: Boolean,
+      default: false,
+    },
   },
-  emits: ['vote', 'status', 'play'],
+  emits: ['vote', 'status', 'play', 'pin'],
   computed: {
     kindLabel(): string {
       return SubmissionKindLabels[this.submission.Kind] ?? this.submission.Kind;
@@ -98,8 +122,10 @@ export default defineComponent({
 </script>
 
 <style scoped lang="scss">
-.vote {
+.vote,
+.stars {
   min-width: 3rem;
+  text-align: center;
 }
 .text {
   overflow-wrap: anywhere;

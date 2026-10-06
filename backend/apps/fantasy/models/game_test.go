@@ -384,3 +384,51 @@ func TestFullGame(t *testing.T) {
 		})
 	}
 }
+
+func TestTopPicksAndPin(t *testing.T) {
+	g := testGame(2)
+	now := time.Now()
+	a := submit(g, "a", "aud0", now)
+	b := submit(g, "b", "aud1", now.Add(time.Second))
+	c := submit(g, "c", "aud2", now.Add(2*time.Second))
+	d := submit(g, "d", "aud3", now.Add(3*time.Second))
+	a.Status, b.Status, c.Status = SUBMISSION_STATUS_APPROVED, SUBMISSION_STATUS_APPROVED, SUBMISSION_STATUS_APPROVED
+	c.ToggleStaffVote("staff1")
+
+	ids := func(subs []*Submission) []string {
+		out := make([]string, 0)
+		for _, s := range subs {
+			out = append(out, s.ID)
+		}
+		return out
+	}
+	if !reflect.DeepEqual(ids(g.TopPicks(0)), []string{"c", "a", "b"}) || !reflect.DeepEqual(ids(g.TopPicks(2)), []string{"c", "a"}) {
+		t.Fatal("top picks: most staff votes, then oldest", ids(g.TopPicks(0)))
+	}
+
+	g.PinnedTopicID = "d"
+	if g.NextTopic() != d {
+		t.Fatal("a pending submission can be pinned and overrides the staff's pick")
+	}
+	next, pinned, picks := g.QueueOrder()
+	if next != "d" || pinned != "d" || len(picks) != 3 {
+		t.Fatal(next, pinned, picks)
+	}
+
+	d.Status = SUBMISSION_STATUS_REJECTED
+	if g.NextTopic() != c || g.PinnedTopic() != nil {
+		t.Fatal("a pin that can no longer be played is ignored")
+	}
+
+	g.PinnedTopicID = "a"
+	g.StartRound(g.NextTopic())
+	if g.PinnedTopicID != "" || a.Status != SUBMISSION_STATUS_PLAYED {
+		t.Fatal("playing the pinned submission clears the pin")
+	}
+
+	g.PinnedTopicID = "b"
+	g.Reset()
+	if g.PinnedTopicID != "" {
+		t.Fatal("reset clears the pin")
+	}
+}

@@ -122,6 +122,13 @@ export const useGameStore = defineStore('gameStore', () => {
     }
   };
 
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const setQueueOrder = (data: any) => {
+    Game.value.NextTopicID = data.NextTopicID || '';
+    Game.value.PinnedTopicID = data.PinnedTopicID || '';
+    Game.value.TopPickIDs = data.TopPickIDs || [];
+  };
+
   const sockMessages: Record<string, (data: SocketMessage['Data']) => void> = {
     GAME_UPDATE: (data) => setGame(data),
     NEW_PLAYER: (data) => upsertPlayer(data),
@@ -129,12 +136,13 @@ export const useGameStore = defineStore('gameStore', () => {
     PLAYER_QUIT: (data) => removePlayer(data),
     NEW_SUBMISSION: (data) => {
       upsertSubmission(data.Submission);
-      Game.value.NextTopicID = data.NextTopicID;
+      setQueueOrder(data);
     },
     SUBMISSION_UPDATED: (data) => {
       upsertSubmission(data.Submission);
-      Game.value.NextTopicID = data.NextTopicID;
+      setQueueOrder(data);
     },
+    QUEUE_UPDATED: (data) => setQueueOrder(data),
     SUBMISSION_STATUS: (data) => setMySubmissionStatus(data.ID, data.Status),
     REACTION_TALLY: (data) => {
       const topic = Game.value.Round?.Topic;

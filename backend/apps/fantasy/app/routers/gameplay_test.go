@@ -176,8 +176,9 @@ func playGame(t *testing.T, teamCount int) {
 	if sub["Submission"].(map[string]interface{})["StaffVotes"] != 1.0 || sub["Submission"].(map[string]interface{})["MyStaffVote"] != true {
 		t.Fatalf("staff vote not recorded: %v", sub)
 	}
-	s.expect(t, 200, "POST", "/api/game/submission/vote/"+ids[2], admin.AccessToken, nil)
-	s.expect(t, 200, "POST", "/api/game/submission/vote/"+ids[2], admin.AccessToken, nil) // toggled off again
+	s.expect(t, fiber.StatusForbidden, "POST", "/api/game/submission/vote/"+ids[2], admin.AccessToken, nil) // stars are staff only
+	s.expect(t, 200, "POST", "/api/game/submission/vote/"+ids[2], staff.AccessToken, nil)
+	s.expect(t, 200, "POST", "/api/game/submission/vote/"+ids[2], staff.AccessToken, nil) // toggled off again
 	fanSock.waitFor(t, "SUBMISSION_STATUS", func(d map[string]interface{}) bool { return d["Status"] == "Approved" })
 
 	// Round 1: the most staff-voted approved submission becomes the topic
@@ -316,4 +317,85 @@ func TestSubmissionCooldown(t *testing.T) {
 	s.expect(t, 200, "POST", "/api/game/submissions", admin.AccessToken, map[string]bool{"Enabled": false})
 	late := s.joinGame(admin.RoomKey, "Late")
 	s.expect(t, fiber.StatusConflict, "PUT", "/api/game/submission/new", late.AccessToken, map[string]string{"Kind": "Question", "Text": "Closed?"})
+}
+
+func TestAdminTopPicksVetoAndOverride(t *testing.T) {
+	s := newTestServer(t, map[string]interface{}{
+		"CORS_ALLOW_ORIGINS":          []string{"http://allowed.example"},
+		"SUBMISSION_COOLDOWN_SECONDS": 0,
+	})
+	addr := listen(t, s)
+
+	admin := s.createGame("Admin")
+	staff := s.joinGame(admin.RoomKey, "Staff")
+	fan := s.joinGame(admin.RoomKey, "Fan")
+	s.expect(t, 200, "POST", "/api/game/role/assign", admin.AccessToken, map[string]string{"UUID": staff.UUID, "PlayerClass": "Staff"})
+	for i, name := range []string{"Team A", "Team B"} {
+		game := s.expect(t, 200, "POST", "/api/game/team/add", admin.AccessToken, map[string]string{"Name": name})
+		teams := game["Game"].(map[string]interface{})["Teams"].([]interface{})
+		director := s.joinGame(admin.RoomKey, fmt.Sprintf("Director %d", i))
+		teamID := teams[i].(map[string]interface{})["ID"].(string)
+		s.expect(t, 200, "POST", "/api/game/role/assign", admin.AccessToken, map[string]string{"UUID": director.UUID, "PlayerClass": "Director", "TeamID": teamID})
+	}
+	staffSock := watch(t, addr, staff)
+	s.expect(t, 200, "POST", "/api/game/code", admin.AccessToken, map[string]int{"Code": 30})
+
+	ids := make([]string, 0)
+	for i := 0; i < 4; i++ {
+		sub := s.expect(t, 200, "PUT", "/api/game/submission/new", fan.AccessToken, map[string]string{"Kind": "Question", "Text": fmt.Sprintf("Question %d", i)})
+		ids = append(ids, sub["Submission"].(map[string]interface{})["ID"].(string))
+	}
+	for _, id := range ids[:3] {
+		s.expect(t, 200, "POST", "/api/game/submission/status/"+id, staff.AccessToken, map[string]string{"Status": "Approved"})
+	}
+	s.expect(t, 200, "POST", "/api/game/submission/vote/"+ids[2], staff.AccessToken, nil)
+
+	// The admin sees the staff's top picks in play order
+	game := s.expect(t, 200, "GET", "/api/game", admin.AccessToken, nil)["Game"].(map[string]interface{})
+	picks := game["TopPickIDs"].([]interface{})
+	if len(picks) != 3 || picks[0] != ids[2] || picks[1] != ids[0] || game["NextTopicID"] != ids[2] {
+		t.Fatalf("top picks wrong: %v next %v", picks, game["NextTopicID"])
+	}
+
+	// Override: pin a submission still awaiting review, it becomes the next topic
+	s.expect(t, fiber.StatusForbidden, "POST", "/api/game/submission/pin", staff.AccessToken, map[string]string{"SubmissionID": ids[3]})
+	s.expect(t, 200, "POST", "/api/game/submission/pin", admin.AccessToken, map[string]string{"SubmissionID": ids[3]})
+	staffSock.waitFor(t, "QUEUE_UPDATED", func(d map[string]interface{}) bool {
+		return d["PinnedTopicID"] == ids[3] && d["NextTopicID"] == ids[3]
+	})
+
+	// Veto: the admin rejects the staff favourite; staff cannot restore it, the admin can
+	s.expect(t, 200, "POST", "/api/game/submission/status/"+ids[2], admin.AccessToken, map[string]string{"Status": "Rejected"})
+	s.expect(t, fiber.StatusForbidden, "POST", "/api/game/submission/status/"+ids[2], staff.AccessToken, map[string]string{"Status": "Approved"})
+	vetoed := staffSock.waitFor(t, "SUBMISSION_UPDATED", func(d map[string]interface{}) bool {
+		sub := d["Submission"].(map[string]interface{})
+		return sub["ID"] == ids[2] && sub["Vetoed"] == true
+	})
+	if picks := vetoed["TopPickIDs"].([]interface{}); len(picks) != 2 || picks[0] != ids[0] {
+		t.Fatalf("vetoed submission should leave the top picks: %v", picks)
+	}
+
+	// Vetoing the pinned submission removes the pin
+	s.expect(t, 200, "POST", "/api/game/submission/status/"+ids[3], admin.AccessToken, map[string]string{"Status": "Rejected"})
+	game = s.expect(t, 200, "GET", "/api/game", admin.AccessToken, nil)["Game"].(map[string]interface{})
+	if game["PinnedTopicID"] != nil || game["NextTopicID"] != ids[0] {
+		t.Fatalf("veto should clear the pin: pinned %v next %v", game["PinnedTopicID"], game["NextTopicID"])
+	}
+	s.expect(t, fiber.StatusBadRequest, "POST", "/api/game/submission/pin", admin.AccessToken, map[string]string{"SubmissionID": ids[3]})
+
+	// The admin lifts the veto and pins it again; revealing plays the pin, then clears it
+	s.expect(t, 200, "POST", "/api/game/submission/status/"+ids[2], admin.AccessToken, map[string]string{"Status": "Approved"})
+	s.expect(t, 200, "POST", "/api/game/submission/status/"+ids[2], staff.AccessToken, map[string]string{"Status": "Pending"})
+	s.expect(t, 200, "POST", "/api/game/submission/pin", admin.AccessToken, map[string]string{"SubmissionID": ids[2]})
+	started := s.expect(t, 200, "POST", "/api/game/round/start", admin.AccessToken, map[string]string{})["Game"].(map[string]interface{})
+	topic := started["Round"].(map[string]interface{})["Topic"].(map[string]interface{})
+	if topic["ID"] != ids[2] || started["PinnedTopicID"] != nil {
+		t.Fatalf("pinned submission should be played and unpinned: %v", started["Round"])
+	}
+
+	// The audience never sees the queue order
+	fanView := s.expect(t, 200, "GET", "/api/game", fan.AccessToken, nil)["Game"].(map[string]interface{})
+	if fanView["TopPickIDs"] != nil || fanView["PinnedTopicID"] != nil {
+		t.Fatal("queue order is for admin and staff only")
+	}
 }
