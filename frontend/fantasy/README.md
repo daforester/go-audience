@@ -17,7 +17,7 @@ One page serves every role, chosen by the admin in the player list:
 
 ## Development
 
-Run the backend with the testing config (API on port 8090):
+Run the backend with the testing config (API on port 18090):
 
 ```sh
 cd backend/apps/fantasy

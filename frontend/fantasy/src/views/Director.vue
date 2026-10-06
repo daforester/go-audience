@@ -25,7 +25,7 @@
         </template>
       </p>
       <p v-else-if="gameCode === GameCodes.AudienceVote" class="text-center h5">
-        The audience are voting. {{ round.TotalVotes }} votes so far...
+        The audience are voting. {{ plural('vote', round.TotalVotes) }} so far...
       </p>
       <p v-else-if="gameCode === GameCodes.RoundResult" class="text-center h4">
         <template v-if="round.WinnerTeamIDs.length === 0">
@@ -58,6 +58,7 @@
 import { defineComponent } from 'vue';
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome';
 import PlayerView from './Player';
+import { plural } from '@/libs/plural';
 import PleaseWait from '@/components/player/PleaseWait.vue';
 import Scoreboard from '@/components/display/Scoreboard.vue';
 import TopicCard from '@/components/display/TopicCard.vue';
@@ -71,6 +72,9 @@ export default defineComponent({
     TopicCard,
   },
   mixins: [PlayerView],
+  methods: {
+    plural,
+  },
   computed: {
     colour(): string {
       return this.store.teamColour(this.player.TeamID) ?? '';

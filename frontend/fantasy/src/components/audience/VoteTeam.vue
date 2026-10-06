@@ -22,7 +22,7 @@
     </div>
     <p class="text-center small mt-2">
       <template v-if="round.MyVote">You can change your vote until voting closes.</template>
-      {{ round.TotalVotes }} votes so far
+      {{ plural('vote', round.TotalVotes) }} so far
     </p>
     <div v-if="ErrorMessage" class="form-text text-danger text-center">
       {{ ErrorMessage }}
@@ -34,6 +34,7 @@
 import { defineComponent } from 'vue';
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome';
 import PlayerView from '@/views/Player';
+import { plural } from '@/libs/plural';
 
 export default defineComponent({
   name: 'VoteTeam',
@@ -42,6 +43,7 @@ export default defineComponent({
   },
   mixins: [PlayerView],
   methods: {
+    plural,
     buttonStyle(teamID: string) {
       const colour = this.store.teamColour(teamID);
       const chosen = this.round?.MyVote === teamID;

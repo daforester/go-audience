@@ -524,3 +524,29 @@ Phases 1 (backend) and 1 (frontend) run in parallel; 4 and 5 can run in parallel
 | 7 | Origins                     | Config allow-list + `CORS_BE_NAUGHTY` host-matching mode, shared by CORS and websocket |
 | 8 | HTTP framework              | Fiber v3 instead of gin; websocket behaviour kept; risks in section 2a mitigated by config + tests |
 | 9 | Request data                | Always copied (`strings.Clone`/`bytes.Clone` via `fiberhelper`), never referenced; `Immutable` left off so tests catch misses |
+
+---
+
+## 11. Implementation notes (as built)
+
+Status: phases 0-5 are implemented on `feature/fantasy` (backend scaffold, models, gameplay
+API, frontend views). Phase 6 (hardening) is partly done: snapshots, reconnects and limits
+are in; a load test and deployment config for the real domain are still to do.
+
+Where the build differs from, or adds to, the plan:
+
+- **Frontend state** lives in a Pinia store (`stores/game.ts`) that handles every socket
+  message, instead of Trudge's chain of events from each view up to `Game.vue`. Components
+  are still Options API, now typed (`<script lang="ts">` + `defineComponent`).
+- **Team management** is one `TeamProcessor` (add / change / remove) rather than three.
+- **GAME_UPDATE** sends each player their own view whenever the game moves on; frequent
+  tallies (reactions, votes) are throttled deltas.
+- **Socket rooms**: messages never register a room (`sockets.GetCollection`), and joining /
+  leaving a room is atomic (`JoinCollection` / `LeaveCollection`). Trudge's version leaks
+  an entry per room and can orphan a socket that joins as the last one leaves.
+- **Token encryption** is AES-GCM (Trudge: AES-CFB, deprecated in Go).
+- **Dev port** is 18090 (8090 is in a Windows reserved range on the dev machine).
+- **Music**: the display supports per-phase tracks like Trudge, but none are bundled
+  (`frontend/fantasy/src/libs/music.ts`).
+- **Production frontend** uses relative `/api` and `/ws`, so it works behind one reverse
+  proxy on any host (and with `CORS_BE_NAUGHTY`).

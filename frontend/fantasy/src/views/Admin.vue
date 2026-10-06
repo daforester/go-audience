@@ -11,7 +11,7 @@
         <span><FontAwesomeIcon :icon="['fas', 'thumbs-up']" /> {{ round.Topic.Ups }}</span>
         <span><FontAwesomeIcon :icon="['fas', 'thumbs-down']" /> {{ round.Topic.Downs }}</span>
         <span>Net {{ round.Topic.Net }}</span>
-        <span>{{ round.TotalVotes }} votes cast</span>
+        <span>{{ plural('vote', round.TotalVotes) }} cast</span>
       </div>
       <div v-if="round.Votes" class="mt-2">
         <div v-for="team in roundTeams" :key="team.ID" class="d-flex align-items-center gap-2">
@@ -49,6 +49,7 @@
 import { defineComponent } from 'vue';
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome';
 import PlayerView from './Player';
+import { plural } from '@/libs/plural';
 import GameControls from '@/components/admin/GameControls.vue';
 import PlayerAssignment from '@/components/admin/PlayerAssignment.vue';
 import TeamEditor from '@/components/admin/TeamEditor.vue';
@@ -67,6 +68,7 @@ export default defineComponent({
   },
   mixins: [PlayerView],
   methods: {
+    plural,
     votePercent(teamID: string): number {
       const total = this.round?.TotalVotes || 0;
       if (!total || !this.round?.Votes) {

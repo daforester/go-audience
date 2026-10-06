@@ -32,7 +32,7 @@
               </select>
             </td>
             <td>
-              <select v-if="p.Class === 'Director' || game.Teams.length > 0"
+              <select v-if="p.Class !== 'Admin' && game.Teams.length > 0"
                       class="form-select form-select-sm"
                       :value="p.Class === 'Director' ? p.TeamID : ''"
                       :aria-label="`Team for ${p.Name}`"

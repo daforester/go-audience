@@ -42,7 +42,7 @@
           </h1>
           <TeamBars :teams="roundTeams" :votes="round.Votes || {}" />
           <p class="text-center h4 mt-3">
-            {{ round.TotalVotes }} votes
+            {{ plural('vote', round.TotalVotes) }}
           </p>
         </template>
 
@@ -74,6 +74,7 @@
 import { defineComponent } from 'vue';
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome';
 import PlayerView from './Player';
+import { plural } from '@/libs/plural';
 import Sunburst from '@/components/backgrounds/Sunburst.vue';
 import DisplayMessage from '@/components/display/DisplayMessage.vue';
 import GameEnd from '@/components/display/GameEnd.vue';
@@ -132,6 +133,7 @@ export default defineComponent({
     this.stopMusic();
   },
   methods: {
+    plural,
     codeChanged(v: number) {
       const track = TrackForCode[v];
       if (track !== undefined && Music[track]) {
