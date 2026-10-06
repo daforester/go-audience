@@ -3,7 +3,7 @@
     <div v-if="round && round.Topic && gameCode > GameCodes.Intake && gameCode < GameCodes.FinalTally"
          class="mb-3"
     >
-      <TopicCard :topic="round.Topic" :round-number="round.Number" compact />
+      <TopicCard :topic="round.Topic" :round-number="round.Number" compact collapsible />
     </div>
     <div class="card-panel">
       <h2 class="h5">

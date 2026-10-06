@@ -1,6 +1,6 @@
 <template>
   <div>
-    <ul class="nav nav-pills mb-2 flex-nowrap overflow-auto">
+    <ul class="nav nav-pills nav-fill queue-tabs mb-2">
       <li v-for="tab in tabs" :key="tab.status" class="nav-item">
         <button class="nav-link"
                 :class="{ active: Tab === tab.status }"
@@ -48,7 +48,7 @@ export default defineComponent({
     return {
       Tab: 'Pending' as SubmissionStatus,
       tabs: [
-        { status: 'Pending' as SubmissionStatus, label: 'To review' },
+        { status: 'Pending' as SubmissionStatus, label: 'Review' },
         { status: 'Approved' as SubmissionStatus, label: 'Approved' },
         { status: 'Rejected' as SubmissionStatus, label: 'Rejected' },
         { status: 'Played' as SubmissionStatus, label: 'Played' },
@@ -108,3 +108,18 @@ export default defineComponent({
   },
 });
 </script>
+
+<style scoped lang="scss">
+.queue-tabs .nav-link {
+  padding: 0.4rem 0.5rem;
+  white-space: nowrap;
+}
+@media (max-width: 576px) {
+  .queue-tabs {
+    display: grid;
+    font-size: 0.9rem;
+    gap: 0.25rem;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+</style>

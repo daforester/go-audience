@@ -16,7 +16,7 @@
         <template v-if="staffCount"> &middot; {{ staffCount }} staff</template>
       </div>
     </div>
-    <Scoreboard v-if="game.Teams.length" :teams="game.Teams" />
+    <Scoreboard v-if="game.Teams.length" :teams="game.Teams" :show-wins="!!game.Round" large />
   </div>
 </template>
 

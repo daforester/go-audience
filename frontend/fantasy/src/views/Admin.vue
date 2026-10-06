@@ -6,7 +6,7 @@
       <h2 class="h5">
         Current Topic
       </h2>
-      <TopicCard :topic="round.Topic" :round-number="round.Number" compact />
+      <TopicCard :topic="round.Topic" :round-number="round.Number" compact collapsible />
       <div class="d-flex justify-content-center gap-4 mt-2">
         <span><FontAwesomeIcon :icon="['fas', 'thumbs-up']" /> {{ round.Topic.Ups }}</span>
         <span><FontAwesomeIcon :icon="['fas', 'thumbs-down']" /> {{ round.Topic.Downs }}</span>
@@ -41,9 +41,10 @@
       </div>
       <div class="col-lg-5">
         <TeamEditor :game-code="gameCode" />
-        <PlayerAssignment :game-code="gameCode" />
       </div>
     </div>
+
+    <PlayerAssignment :game-code="gameCode" />
   </div>
 </template>
 
@@ -86,6 +87,8 @@ export default defineComponent({
 
 <style scoped lang="scss">
 .team-label {
-  min-width: 8rem;
+  max-width: 40%;
+  min-width: 6rem;
+  overflow-wrap: anywhere;
 }
 </style>

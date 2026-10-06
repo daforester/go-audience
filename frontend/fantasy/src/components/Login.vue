@@ -1,7 +1,7 @@
 <template>
   <div class="py-4">
     <h1 class="text-center mb-4 title">
-      <span class="d-block small text-uppercase">The</span>
+      <span class="d-block fs-6 text-uppercase">The</span>
       Fantasy Furry Convention
       <FontAwesomeIcon :icon="['fas', 'paw']" class="d-block mx-auto mt-2 dance" />
     </h1>

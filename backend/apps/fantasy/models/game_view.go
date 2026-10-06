@@ -60,6 +60,7 @@ type GameView struct {
 	Volume             int
 	MaxTeams           int `json:",omitempty"`
 	SubmissionKinds    []SubmissionKind
+	SubmissionCount    int
 	Players            []*Player `json:",omitempty"`
 	Teams              []TeamView
 	Submissions        []SubmissionView `json:",omitempty"`
@@ -89,6 +90,7 @@ func (g *Game) ViewFor(player *Player) *GameView {
 		ShowSubmitterNames: g.ShowSubmitterNames,
 		Volume:             g.Volume,
 		SubmissionKinds:    SubmissionKinds,
+		SubmissionCount:    len(g.Submissions),
 		Teams:              g.TeamViews(),
 	}
 

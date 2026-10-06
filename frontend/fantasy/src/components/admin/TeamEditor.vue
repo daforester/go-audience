@@ -6,7 +6,7 @@
       <small class="text-muted">{{ game.Teams.length }} / {{ maxTeams }}</small>
     </h2>
     <ul class="list-unstyled mb-2">
-      <li v-for="team in game.Teams" :key="team.ID" class="d-flex align-items-center gap-2 mb-2">
+      <li v-for="team in game.Teams" :key="team.ID" class="team-row d-flex flex-wrap align-items-center gap-2 mb-2">
         <span class="team-swatch" :style="{ background: store.teamColour(team.ID) }" />
         <input class="form-control form-control-sm team-name"
                :value="team.Name"
@@ -14,10 +14,7 @@
                maxlength="32"
                @change="renameTeam(team.ID, ($event.target as HTMLInputElement).value)"
         >
-        <span class="small text-muted flex-grow-1">
-          {{ team.Members.map((m) => m.Name).join(', ') || 'No directors yet' }}
-        </span>
-        <span class="small">{{ team.RoundWins }} wins</span>
+        <span class="small text-nowrap">{{ plural('win', team.RoundWins) }}</span>
         <button class="btn btn-outline-danger btn-sm"
                 :disabled="roundInProgress"
                 :title="`Remove ${team.Name}`"
@@ -25,6 +22,9 @@
         >
           <FontAwesomeIcon :icon="['fas', 'trash']" />
         </button>
+        <span class="members small text-muted">
+          {{ team.Members.map((m) => m.Name).join(', ') || 'No directors yet' }}
+        </span>
       </li>
     </ul>
     <form v-if="game.Teams.length < maxTeams" class="d-flex gap-2" @submit.prevent="addTeam">
@@ -50,6 +50,7 @@
 import { defineComponent } from 'vue';
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome';
 import PlayerView from '@/views/Player';
+import { plural } from '@/libs/plural';
 import { GameCodes } from '@/types/game';
 
 export default defineComponent({
@@ -74,6 +75,7 @@ export default defineComponent({
     },
   },
   methods: {
+    plural,
     addTeam() {
       this.gameRequest('post', '/game/team/add', { Name: this.NewTeamName })
         .then(() => {
@@ -94,7 +96,15 @@ export default defineComponent({
 </script>
 
 <style scoped lang="scss">
-.team-name {
-  max-width: 12rem;
+.team-row .team-name {
+  flex: 1 1 10rem;
+  min-width: 0;
+}
+form .team-name {
+  max-width: 16rem;
+}
+.members {
+  flex-basis: 100%;
+  padding-left: 1.4rem;
 }
 </style>

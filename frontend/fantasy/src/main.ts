@@ -1,3 +1,4 @@
+import '@fontsource-variable/nunito';
 import { createApp } from 'vue';
 import { createPinia } from 'pinia';
 import persistedStatePlugin from 'pinia-plugin-persistedstate';

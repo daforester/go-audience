@@ -7,7 +7,7 @@
       />
       <nav class="navbar navbar-light bg-light px-3 gap-2">
         <div :class="isClass('Display') ? 'onHover' : ''">
-          <button class="btn btn-dark btn-sm" @click="quitGame">
+          <button class="btn btn-dark btn-sm" @click="confirmQuit">
             <FontAwesomeIcon :icon="['fas', 'right-from-bracket']" />
             Disconnect
           </button>
@@ -183,6 +183,15 @@ export default defineComponent({
       if (this.Player.Class !== before) {
         // Our role changed, keep the token's copy of us current
         this.emitter.emit('refreshTokensByService', SERVICE);
+      }
+    },
+    confirmQuit() {
+      const lastAdmin = this.isClass('Admin') && (this.Game.Players || []).filter((p) => p.Class === 'Admin').length <= 1;
+      const message = lastAdmin
+        ? 'Disconnect and end the game for everyone?'
+        : 'Disconnect? You will need to join again as a new player.';
+      if (window.confirm(message)) {
+        this.quitGame();
       }
     },
     quitGame() {

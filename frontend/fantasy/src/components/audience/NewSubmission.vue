@@ -5,7 +5,7 @@
     </h1>
     <form @submit.prevent="sendSubmission">
       <fieldset :disabled="requesting">
-        <div class="btn-group w-100 mb-2 flex-wrap" role="group" aria-label="Kind of submission">
+        <div class="kinds mb-2" role="radiogroup" aria-label="Kind of submission">
           <template v-for="kind in game.SubmissionKinds" :key="kind">
             <input :id="`kind-${kind}`"
                    v-model="Kind"
@@ -31,7 +31,7 @@
           />
           <div class="form-text d-flex">
             <span class="me-auto">The staff team pick the best for the directors to deal with.</span>
-            <span>{{ Text.length }} / {{ maxLength }}</span>
+            <span class="text-nowrap ms-2">{{ Text.length }} / {{ maxLength }}</span>
           </div>
           <div v-if="ErrorMessage" class="form-text text-danger">
             {{ ErrorMessage }}
@@ -89,3 +89,18 @@ export default defineComponent({
   },
 });
 </script>
+
+<style scoped lang="scss">
+.kinds {
+  display: grid;
+  gap: 0.5rem;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  .btn {
+    align-items: center;
+    display: flex;
+    gap: 0.35rem;
+    justify-content: center;
+    line-height: 1.2;
+  }
+}
+</style>

@@ -1,5 +1,5 @@
 <template>
-  <div class="team-bars" :style="{ '--teams': teams.length }">
+  <div class="team-bars" :style="{ '--teams': teams.length, '--bar-height': height }">
     <div v-for="team in teams" :key="team.ID" class="team" :class="{ winner: winners.includes(team.ID) }">
       <div class="bar-wrap">
         <div class="bar"
@@ -47,6 +47,10 @@ export default defineComponent({
       type: Array as PropType<string[]>,
       default: () => [],
     },
+    height: {
+      type: String,
+      default: '40vh',
+    },
   },
   data() {
     return {
@@ -86,7 +90,7 @@ export default defineComponent({
   border: 2px solid #2b2233;
   border-radius: 0.8rem;
   display: flex;
-  height: 40vh;
+  height: var(--bar-height);
   overflow: hidden;
 }
 .bar {

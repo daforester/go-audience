@@ -65,3 +65,9 @@ export default defineComponent({
   },
 });
 </script>
+
+<style scoped lang="scss">
+.big-button svg {
+  font-size: 2rem;
+}
+</style>

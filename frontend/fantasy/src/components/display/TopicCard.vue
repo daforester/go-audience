@@ -1,5 +1,5 @@
 <template>
-  <div class="topic text-center" :class="{ compact }">
+  <div class="topic text-center" :class="[{ compact, collapsed: isCollapsed }, lengthClass]">
     <div class="kind text-uppercase">
       <FontAwesomeIcon :icon="['fas', kindIcon]" />
       {{ kindLabel }}
@@ -8,6 +8,13 @@
     <blockquote class="text mb-2">
       &ldquo;{{ topic.Text }}&rdquo;
     </blockquote>
+    <button v-if="collapsible && isLong"
+            class="btn btn-link btn-sm p-0 mb-1"
+            :aria-expanded="!isCollapsed"
+            @click="Expanded = !Expanded"
+    >
+      {{ isCollapsed ? 'Show all' : 'Show less' }}
+    </button>
     <div v-if="topic.AuthorName" class="author">
       &mdash; {{ topic.AuthorName }}
     </div>
@@ -19,6 +26,10 @@ import { defineComponent, type PropType } from 'vue';
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome';
 import { KindIcons } from '@/libs/kinds';
 import { SubmissionKindLabels, type Submission } from '@/types/game';
+
+// Text sizes step down with length so a full 280 character topic still fits a 720p projector
+const MEDIUM_LENGTH = 90;
+const LONG_LENGTH = 170;
 
 export default defineComponent({
   name: 'TopicCard',
@@ -38,6 +49,16 @@ export default defineComponent({
       type: Boolean,
       default: false,
     },
+    // Long topics start clamped to a few lines, for screens where the topic is context
+    collapsible: {
+      type: Boolean,
+      default: false,
+    },
+  },
+  data() {
+    return {
+      Expanded: false,
+    };
   },
   computed: {
     kindLabel(): string {
@@ -45,6 +66,26 @@ export default defineComponent({
     },
     kindIcon(): string {
       return KindIcons[this.topic.Kind] ?? 'bullhorn';
+    },
+    isLong(): boolean {
+      return this.topic.Text.length > MEDIUM_LENGTH;
+    },
+    isCollapsed(): boolean {
+      return this.collapsible && this.isLong && !this.Expanded;
+    },
+    lengthClass(): string {
+      if (this.topic.Text.length > LONG_LENGTH) {
+        return 'long';
+      }
+      if (this.topic.Text.length > MEDIUM_LENGTH) {
+        return 'medium';
+      }
+      return '';
+    },
+  },
+  watch: {
+    'topic.ID'() {
+      this.Expanded = false;
     },
   },
 });
@@ -67,7 +108,14 @@ export default defineComponent({
 .text {
   font-size: calc(1.2rem + 2.4vw);
   font-weight: 700;
+  line-height: 1.25;
   overflow-wrap: anywhere;
+}
+.medium .text {
+  font-size: calc(1.1rem + 1.8vw);
+}
+.long .text {
+  font-size: calc(1rem + 1.35vw);
 }
 .author {
   font-size: calc(1rem + 0.8vw);
@@ -77,6 +125,39 @@ export default defineComponent({
   padding: 0.75rem 1.25rem;
   .text {
     font-size: calc(1rem + 1.2vw);
+  }
+  &.long .text {
+    font-size: calc(0.95rem + 0.8vw);
+  }
+}
+.collapsed .text {
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+  display: -webkit-box;
+  line-clamp: 3;
+  overflow: hidden;
+}
+
+// Phones: the topic is read at arm's length, not across a room
+@media (max-width: 576px) {
+  .topic,
+  .compact {
+    border-width: 2px;
+    max-width: 100%;
+    padding: 0.75rem 1rem;
+  }
+  .text,
+  .medium .text,
+  .long .text,
+  .compact .text,
+  .compact.long .text {
+    font-size: 1.15rem;
+  }
+  .kind {
+    font-size: 0.8rem;
+  }
+  .author {
+    font-size: 0.95rem;
   }
 }
 </style>

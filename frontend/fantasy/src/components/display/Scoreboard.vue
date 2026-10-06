@@ -1,5 +1,5 @@
 <template>
-  <div class="scoreboard" :style="{ '--teams': teams.length }">
+  <div class="scoreboard" :class="{ large }" :style="{ '--teams': teams.length }">
     <div v-for="team in teams"
          :key="team.ID"
          class="team card-panel"
@@ -13,7 +13,7 @@
       <div v-if="showMembers" class="members small">
         {{ team.Members.map((m) => m.Name).join(', ') }}
       </div>
-      <div class="wins">
+      <div v-if="showWins" class="wins">
         <FontAwesomeIcon :icon="['fas', 'trophy']" />
         {{ team.RoundWins }}
       </div>
@@ -45,6 +45,15 @@ export default defineComponent({
       type: Boolean,
       default: true,
     },
+    showWins: {
+      type: Boolean,
+      default: true,
+    },
+    // Sized for reading across a room on the main display
+    large: {
+      type: Boolean,
+      default: false,
+    },
   },
   data() {
     return {
@@ -75,8 +84,52 @@ export default defineComponent({
   font-size: 1.6em;
   font-weight: 800;
 }
+.large {
+  max-width: min(94vw, 110rem);
+  .name {
+    font-size: calc(1rem + 1.4vw);
+  }
+  .members {
+    font-size: calc(0.8rem + 0.7vw) !important;
+  }
+  .wins {
+    font-size: calc(1rem + 1.6vw);
+  }
+}
 .presenting {
   transform: scale(1.06);
   transition: transform 0.3s;
+}
+
+// Phones: one team per row, name on the left and wins on the right
+@media (max-width: 576px) {
+  .scoreboard {
+    gap: 0.5rem;
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .team {
+    align-items: center;
+    column-gap: 0.75rem;
+    display: grid;
+    grid-template-areas: 'name wins' 'members wins';
+    grid-template-columns: minmax(0, 1fr) auto;
+    padding: 0.5rem 0.75rem;
+    text-align: left;
+  }
+  .name {
+    font-size: 1.1em;
+    grid-area: name;
+    overflow-wrap: break-word;
+  }
+  .members {
+    grid-area: members;
+  }
+  .wins {
+    font-size: 1.3em;
+    grid-area: wins;
+  }
+  .presenting {
+    transform: none;
+  }
 }
 </style>

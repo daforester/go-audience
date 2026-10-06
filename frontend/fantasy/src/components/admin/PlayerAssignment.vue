@@ -122,3 +122,9 @@ export default defineComponent({
   },
 });
 </script>
+
+<style scoped lang="scss">
+select {
+  min-width: 9.5rem;
+}
+</style>

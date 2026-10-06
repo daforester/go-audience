@@ -79,6 +79,7 @@ export interface Game {
   Volume: number;
   MaxTeams?: number;
   SubmissionKinds: SubmissionKind[];
+  SubmissionCount?: number;
   Players?: Player[];
   Teams: Team[];
   Submissions?: Submission[];

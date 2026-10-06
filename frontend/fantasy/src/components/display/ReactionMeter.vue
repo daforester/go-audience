@@ -1,15 +1,15 @@
 <template>
   <div class="meter mx-auto" role="meter" :aria-valuenow="topic.Net" :aria-label="`Audience reaction ${topic.Net}`">
-    <div class="side down">
-      <FontAwesomeIcon :icon="['fas', 'thumbs-down']" />
-      {{ topic.Downs }}
+    <div class="side up">
+      <FontAwesomeIcon :icon="['fas', 'thumbs-up']" />
+      {{ topic.Ups }}
     </div>
     <div class="track">
       <div class="fill" :style="{ width: `${upShare}%` }" />
     </div>
-    <div class="side up">
-      {{ topic.Ups }}
-      <FontAwesomeIcon :icon="['fas', 'thumbs-up']" />
+    <div class="side down">
+      {{ topic.Downs }}
+      <FontAwesomeIcon :icon="['fas', 'thumbs-down']" />
     </div>
   </div>
 </template>

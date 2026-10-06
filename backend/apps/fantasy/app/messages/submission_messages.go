@@ -43,7 +43,21 @@ func QueueUpdatedMessage(game *models.Game) error {
 // NewSubmissionMessage tells admin and staff about a new submission. Must be called with
 // the game locked.
 func NewSubmissionMessage(game *models.Game, submission *models.Submission) error {
+	SubmissionCountMessage(game)
 	return sendToModerators(game, "NEW_SUBMISSION", submission)
+}
+
+// SubmissionCountMessage tells the display how many submissions have arrived, at most every
+// TallyInterval. Must be called with the game locked.
+func SubmissionCountMessage(game *models.Game) {
+	roomKey := game.Key
+	data := map[string]interface{}{
+		"SubmissionCount": len(game.Submissions),
+	}
+
+	throttled(roomKey+"/submissions", TallyInterval, func() {
+		_ = sendToClasses(roomKey, "SUBMISSION_COUNT", data, models.PLAYER_CLASS_DISPLAY, models.PLAYER_CLASS_ADMIN)
+	})
 }
 
 // SubmissionUpdatedMessage tells admin and staff a submission changed, and lets the author

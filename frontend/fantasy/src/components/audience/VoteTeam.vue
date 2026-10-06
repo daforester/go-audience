@@ -21,8 +21,8 @@
       </button>
     </div>
     <p class="text-center small mt-2">
-      <template v-if="round.MyVote">You can change your vote until voting closes.</template>
-      {{ plural('vote', round.TotalVotes) }} so far
+      <span v-if="round.MyVote" class="d-block">You can change your vote until voting closes.</span>
+      <span class="d-block">{{ plural('vote', round.TotalVotes) }} so far</span>
     </p>
     <div v-if="ErrorMessage" class="form-text text-danger text-center">
       {{ ErrorMessage }}

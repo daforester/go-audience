@@ -8,6 +8,9 @@
 # air, the frontend through the Vite dev server. Session keys are generated on each
 # backend start (dev mode), so players need to rejoin after the backend restarts; set
 # FANTASY_SESSION_AUTHKEY / FANTASY_SESSION_ENCKEY in your environment to keep them.
+#
+# The frontend installs its packages when the container starts. After changing
+# frontend dependencies, run: docker compose -f docker-compose-fantasy-dev.yml restart frontend
 
 name: fantasy-dev
 

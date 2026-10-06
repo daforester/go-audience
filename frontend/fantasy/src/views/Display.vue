@@ -7,11 +7,15 @@
 
         <template v-else-if="gameCode === GameCodes.Intake">
           <DisplayMessage effect="toaster" message="Complaints Desk Open" />
-          <h2 class="text-center mb-4">
+          <h2 class="text-center mb-2">
             Join at <strong>{{ joinHost }}</strong> with code <strong>{{ game.Key }}</strong>
             and tell the con directors what's wrong
           </h2>
-          <Scoreboard v-if="game.Teams.length" :teams="game.Teams" />
+          <p v-if="game.SubmissionCount" class="text-center h3 mb-4">
+            <FontAwesomeIcon :icon="['fas', 'bullhorn']" />
+            {{ plural('submission', game.SubmissionCount) }} received
+          </p>
+          <Scoreboard v-if="game.Teams.length" :teams="game.Teams" :show-wins="!!round" large />
         </template>
 
         <template v-else-if="gameCode === GameCodes.TopicReveal && round && round.Topic">
@@ -24,7 +28,7 @@
         <template v-else-if="gameCode === GameCodes.Responses && round && round.Topic">
           <TopicCard :topic="round.Topic" :round-number="round.Number" compact class="mb-4" />
           <div v-if="round.PresentingTeam" class="presenting text-center mb-4">
-            <FontAwesomeIcon :icon="['fas', 'microphone']" class="dance" />
+            <FontAwesomeIcon :icon="['fas', 'microphone']" class="dance me-3" />
             <span :style="{ color: store.teamColour(round.PresentingTeam) }">
               {{ store.teamName(round.PresentingTeam) }}
             </span>
@@ -57,8 +61,13 @@
               Nobody voted. Nobody wins.
             </template>
           </h1>
-          <TeamBars :teams="roundTeams" :votes="round.Votes || {}" :winners="round.WinnerTeamIDs" class="mb-4" />
-          <Scoreboard :teams="game.Teams" :show-members="false" />
+          <TeamBars :teams="roundTeams"
+                    :votes="round.Votes || {}"
+                    :winners="round.WinnerTeamIDs"
+                    height="24vh"
+                    class="mb-4"
+          />
+          <Scoreboard :teams="game.Teams" :show-members="false" large />
         </template>
 
         <GameEnd v-else-if="gameCode === GameCodes.FinalTally" :key="`end-${game.Key}`" :game="game" />

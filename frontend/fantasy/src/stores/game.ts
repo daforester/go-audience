@@ -170,6 +170,9 @@ export const useGameStore = defineStore('gameStore', () => {
         Game.value.Round.PresentingTeam = data.TeamID;
       }
     },
+    SUBMISSION_COUNT: (data) => {
+      Game.value.SubmissionCount = data.SubmissionCount;
+    },
     SUBMISSIONS_ENABLED: (data) => {
       Game.value.SubmissionsEnabled = data.Enabled;
     },
