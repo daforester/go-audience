@@ -1,0 +1,8 @@
+version: '3.7'
+
+services:
+  web:
+    image: furzr/priceisright:latest
+    command: /go/bin/go-audience -config /go/config.toml -root /go/
+    ports:
+      - "8090:80"

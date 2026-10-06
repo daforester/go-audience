@@ -1,0 +1,22 @@
+@keyframes rippleText {
+  0%, 10%, 100% {
+    font-size: 1em;
+  }
+  5% {
+    font-size: 2em;
+  }
+}
+.ripple {
+  animation-name: rippleText;
+  animation-duration: 5s;
+  animation-iteration-count: infinite;
+  animation-timing-function: ease;
+  animation-fill-mode: both;
+  line-height: 6rem;
+}
+
+@for $i from 1 through 20 {
+  .ripple:nth-child(#{$i}) {
+    animation-delay: #{calc($i / 8)}s;
+  }
+}

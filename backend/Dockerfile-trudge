@@ -1,0 +1,17 @@
+FROM golang:1.18 as compiler
+
+ENV GO111MODULE=on
+
+COPY . /src/go-audience/
+
+WORKDIR /src/go-audience
+
+RUN go build -mod=vendor -o /go/bin/trudge /src/go-audience/apps/trudge/cmd/trudge.go
+
+FROM golang:1.18
+
+COPY --from=compiler /go/bin/trudge /go/bin/trudge
+
+COPY config-trudge.toml /go/config.toml
+
+ENTRYPOINT ["/go/bin/trudge"]

@@ -1,0 +1,33 @@
+@keyframes iconDance {
+  0% {
+    transform: rotate(330deg);
+    transform-origin: 50% 100%;
+  }
+  100% {
+    transform: rotate(390deg);
+    transform-origin: 50% 100%;
+  }
+}
+
+@keyframes iconDanceReverse {
+  0% {
+    transform: rotate(390deg);
+    transform-origin: 50% 100%;
+  }
+  100% {
+    transform: rotate(330deg);
+    transform-origin: 50% 100%;
+  }
+}
+
+.dance {
+  animation-name: iconDance;
+  animation-direction: alternate;
+  animation-delay: 0s;
+  animation-duration: 2s;
+  animation-iteration-count: infinite;
+  animation-timing-function: ease-in-out;
+}
+.dance-reverse {
+  animation-name: iconDanceReverse;
+}

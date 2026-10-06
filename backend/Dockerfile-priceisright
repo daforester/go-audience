@@ -1,0 +1,17 @@
+FROM golang:1.18 as compiler
+
+ENV GO111MODULE=on
+
+COPY . /src/go-audience/
+
+WORKDIR /src/go-audience
+
+RUN go build -mod=vendor -o /go/bin/priceisright /src/go-audience/apps/priceisright/cmd/priceisright.go
+
+FROM golang:1.18
+
+COPY --from=compiler /go/bin/priceisright /go/bin/priceisright
+
+COPY config-priceisright.toml /go/config.toml
+
+ENTRYPOINT ["/go/bin/priceisright"]

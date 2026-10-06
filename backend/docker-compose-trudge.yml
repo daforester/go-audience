@@ -1,0 +1,8 @@
+version: '3.7'
+
+services:
+  web:
+    image: furzr/trudge:latest
+    command: /go/bin/go-audience -config /go/config.toml -root /go/
+    ports:
+      - "8089:80"
