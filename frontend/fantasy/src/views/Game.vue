@@ -5,16 +5,14 @@
                  :wsuri="wsuri"
                  @sockmsg="sockMsg"
       />
-      <nav class="navbar navbar-light bg-light px-3 gap-2">
-        <div :class="isClass('Display') ? 'onHover' : ''">
+      <nav class="navbar navbar-light bg-light px-3 gap-2" :class="{ 'display-nav': isClass('Display') }">
+        <div>
           <button class="btn btn-dark btn-sm" @click="confirmQuit">
             <FontAwesomeIcon :icon="['fas', 'right-from-bracket']" />
             Disconnect
           </button>
         </div>
-        <span v-if="isClass('Admin') || isClass('Display')"
-              :class="isClass('Display') ? 'onHover' : ''"
-        >
+        <span v-if="isClass('Admin') || isClass('Display')">
           <input v-model.number="Game.Volume"
                  type="range"
                  min="0"
@@ -224,12 +222,17 @@ nav {
 .volumeControl {
   width: 8rem;
 }
-.onHover .btn,
-.onHover .volumeControl {
-  visibility: hidden;
+// On the projector the bar stays out of sight; move the mouse to the top to use it
+.display-nav {
+  left: 0;
+  opacity: 0;
+  position: fixed;
+  right: 0;
+  top: 0;
+  transition: opacity 0.2s;
 }
-.onHover:hover .btn,
-.onHover:hover .volumeControl {
-  visibility: visible;
+.display-nav:hover,
+.display-nav:focus-within {
+  opacity: 1;
 }
 </style>

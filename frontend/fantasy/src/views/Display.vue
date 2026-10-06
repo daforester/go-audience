@@ -7,10 +7,13 @@
 
         <template v-else-if="gameCode === GameCodes.Intake">
           <DisplayMessage effect="toaster" message="Complaints Desk Open" />
-          <h2 class="text-center mb-2">
-            Join at <strong>{{ joinHost }}</strong> with code <strong>{{ game.Key }}</strong>
-            and tell the con directors what's wrong
-          </h2>
+          <div class="d-flex justify-content-center align-items-center gap-4 mb-2">
+            <JoinQr :room-key="game.Key" :size="140" />
+            <h2 class="m-0">
+              Scan, or join at <strong>{{ joinHost }}</strong> with code <strong>{{ game.Key }}</strong>,
+              <br>and tell the con directors what's wrong
+            </h2>
+          </div>
           <p v-if="game.SubmissionCount" class="text-center h3 mb-4">
             <FontAwesomeIcon :icon="['fas', 'bullhorn']" />
             {{ plural('submission', game.SubmissionCount) }} received
@@ -73,6 +76,7 @@
         <GameEnd v-else-if="gameCode === GameCodes.FinalTally" :key="`end-${game.Key}`" :game="game" />
       </div>
     </div>
+    <JoinBadge v-if="showJoinBadge" :room-key="game.Key" />
     <div v-if="musicCopyrightNotice" class="musicCopyright">
       {{ musicCopyrightNotice }}
     </div>
@@ -87,11 +91,14 @@ import { plural } from '@/libs/plural';
 import Sunburst from '@/components/backgrounds/Sunburst.vue';
 import DisplayMessage from '@/components/display/DisplayMessage.vue';
 import GameEnd from '@/components/display/GameEnd.vue';
+import JoinBadge from '@/components/display/JoinBadge.vue';
+import JoinQr from '@/components/display/JoinQr.vue';
 import Lobby from '@/components/display/Lobby.vue';
 import ReactionMeter from '@/components/display/ReactionMeter.vue';
 import Scoreboard from '@/components/display/Scoreboard.vue';
 import TeamBars from '@/components/display/TeamBars.vue';
 import TopicCard from '@/components/display/TopicCard.vue';
+import { joinHost } from '@/libs/join';
 import { Music, TrackForCode } from '@/libs/music';
 
 export default defineComponent({
@@ -100,6 +107,8 @@ export default defineComponent({
     DisplayMessage,
     FontAwesomeIcon,
     GameEnd,
+    JoinBadge,
+    JoinQr,
     Lobby,
     ReactionMeter,
     Scoreboard,
@@ -124,7 +133,11 @@ export default defineComponent({
   },
   computed: {
     joinHost(): string {
-      return window.location.host;
+      return joinHost();
+    },
+    showJoinBadge(): boolean {
+      // Not on the round result: the scoreboard needs that corner
+      return this.gameCode >= this.GameCodes.TopicReveal && this.gameCode < this.GameCodes.RoundResult;
     },
   },
   watch: {
@@ -201,8 +214,8 @@ export default defineComponent({
 
 .main-display {
   left: 0;
-  min-height: calc(100vh - 3.5rem);
-  top: 3.5rem;
+  min-height: 100vh;
+  top: 0;
 }
 .presenting {
   font-size: calc(1.5rem + 3vw);
