@@ -34,7 +34,10 @@
       <h2 v-if="winners.length === 0">
         Nobody won. The convention has been cancelled.
       </h2>
-      <Scoreboard v-if="revealStep >= 3" :teams="game.Teams" :show-members="false" class="mt-4 toaster toaster-once" />
+      <!-- The wrapper animates; the toaster's inline-block would otherwise undo the scoreboard's grid -->
+      <div v-if="revealStep >= 3" class="final-scores mt-4 toaster toaster-once">
+        <Scoreboard :teams="game.Teams" :show-members="false" />
+      </div>
     </div>
   </div>
 </template>
@@ -108,6 +111,10 @@ export default defineComponent({
 }
 .members {
   color: #2b2233;
+}
+.final-scores {
+  display: block;
+  width: 100%;
 }
 .crown {
   color: #f2a516;
