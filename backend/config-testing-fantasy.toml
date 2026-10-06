@@ -1,7 +1,4 @@
-HTTP_BASE = "/"
-HTTP_HOST = "localhost"
 HTTP_PORT = 18090
-HTTP_SCHEMA = "http"
 
 SITE_MODE = "dev"
 

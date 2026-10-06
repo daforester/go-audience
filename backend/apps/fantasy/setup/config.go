@@ -72,13 +72,9 @@ func Config() {
 }
 
 func Defaults() {
-	viper.SetDefault("HTTP_BASE", "/")
-	viper.SetDefault("HTTP_HOST", "localhost")
 	viper.SetDefault("HTTP_PORT", 80)
-	viper.SetDefault("HTTP_SCHEMA", "http")
 
 	viper.SetDefault("SITE_MODE", "dev")
-	viper.SetDefault("DEBUG_USER", 0)
 
 	viper.SetDefault("CORS_ALLOW_ORIGINS", []string{"http://localhost:5173"})
 	viper.SetDefault("CORS_BE_NAUGHTY", false)

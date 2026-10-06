@@ -7,15 +7,10 @@ import router from '@/router';
 
 import mitt from 'mitt';
 import useLocalStore from './stores/local';
+import { resolveEndpoints } from './libs/endpoints';
 const emitter = mitt();
 
-// Relative URLs (e.g. "/api") are served from the same host as the page
-const apiUri = new URL(import.meta.env.VITE_API_URL, window.location.href).href.replace(/\/$/, '');
-const wsUrl = new URL(import.meta.env.VITE_WS_URL, window.location.href);
-if (wsUrl.protocol === 'http:' || wsUrl.protocol === 'https:') {
-  wsUrl.protocol = wsUrl.protocol === 'https:' ? 'wss:' : 'ws:';
-}
-const wsUri = wsUrl.href.replace(/\/$/, '');
+const { apiUri, wsUri } = resolveEndpoints(import.meta.env.VITE_API_URL, import.meta.env.VITE_WS_URL);
 
 const app = createApp(App);
 

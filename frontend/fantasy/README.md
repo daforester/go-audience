@@ -45,11 +45,28 @@ to play several roles at once.
 
 ## Configuration
 
-`VITE_API_URL` and `VITE_WS_URL` (see `.env.development` / `.env.production`) may be
-absolute, or relative to the page's host. The production build uses `/api` and `/ws` on
-the same host, which suits a reverse proxy in front of both.
+API endpoints are never hardcoded. Every build needs `VITE_API_URL` (http/https) and
+`VITE_WS_URL` (ws/wss), as absolute URLs, and the build fails without them. Provide them
+as environment variables or in `.env.[mode].local` (git ignored):
+
+```sh
+cp .env.production.example .env.production.local   # https://ffc-api.furrific.uk
+npm run build
+```
+
+or, for CI:
+
+```sh
+VITE_API_URL=https://ffc-api.furrific.uk/api VITE_WS_URL=wss://ffc-api.furrific.uk/ws npm run build
+```
+
+`.env.development` holds the local dev backend address used by `npm run dev`.
+
+The backend must list the site the frontend is served from in `CORS_ALLOW_ORIGINS`
+(or `FANTASY_CORS_ALLOW_ORIGINS`).
 
 ## Music
 
-The main display can play music per phase like Trudge's did, but no tracks are bundled.
-Add files to `src/assets/music` and list them in `src/libs/music.ts`.
+The main display can play music per phase like Trudge's did. New tracks suited to the
+convention theme are still to be chosen (Trudge's fantasy tracks are deliberately not
+reused). Add files to `src/assets/music` and list them in `src/libs/music.ts`.

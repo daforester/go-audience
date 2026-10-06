@@ -19,6 +19,8 @@ const CorsMaxAge = 12 * 60 * 60
 func Cors() {
 	if viper.GetBool("CORS_BE_NAUGHTY") {
 		logrus.Warn("CORS_BE_NAUGHTY is on: any origin matching the request host is allowed")
+	} else if len(AllowedOrigins()) == 0 {
+		logrus.Warn("CORS_ALLOW_ORIGINS is empty: browsers will only reach the API from its own origin")
 	}
 }
 

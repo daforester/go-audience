@@ -1,14 +1,13 @@
-HTTP_BASE = "/"
-HTTP_HOST = "localhost"
 HTTP_PORT = 80
-HTTP_SCHEMA = "https"
 
 SITE_MODE = "production"
 
 # Session keys are never committed. Provide them from the environment:
 #   FANTASY_SESSION_AUTHKEY (base32, 64 bytes) and FANTASY_SESSION_ENCKEY (base32, 32 bytes)
 
-# Explicit allow-list of browser origins, used for HTTP CORS and websocket upgrades
+# Explicit allow-list of browser origins (where the frontend is served from), used for
+# HTTP CORS and websocket upgrades. The API itself is served at https://ffc-api.furrific.uk.
+# Set here or with FANTASY_CORS_ALLOW_ORIGINS (space separated).
 CORS_ALLOW_ORIGINS = []
 
 # Be naughty: allow any Origin whose host matches the Host the request arrived on.

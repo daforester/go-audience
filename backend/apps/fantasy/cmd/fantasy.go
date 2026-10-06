@@ -15,8 +15,6 @@ import (
 )
 
 func main() {
-	viper.SetDefault("ENVIRONMENT", "dev")
-
 	setup.Config()
 	setup.Keys()
 	setup.Logger()
