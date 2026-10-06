@@ -546,7 +546,13 @@ Where the build differs from, or adds to, the plan:
   an entry per room and can orphan a socket that joins as the last one leaves.
 - **Token encryption** is AES-GCM (Trudge: AES-CFB, deprecated in Go).
 - **Dev port** is 18090 (8090 is in a Windows reserved range on the dev machine).
-- **Music**: the display supports per-phase tracks like Trudge, but none are bundled
-  (`frontend/fantasy/src/libs/music.ts`).
-- **Production frontend** uses relative `/api` and `/ws`, so it works behind one reverse
-  proxy on any host (and with `CORS_BE_NAUGHTY`).
+- **Music**: the display supports per-phase tracks like Trudge. New, convention-themed
+  tracks are still to be chosen; Trudge's are not reused (`frontend/fantasy/src/libs/music.ts`).
+- **Endpoints** are build configuration only: `VITE_API_URL` / `VITE_WS_URL` must be set
+  (production: `https://ffc-api.furrific.uk/api`, `wss://ffc-api.furrific.uk/ws`, see
+  `.env.production.example`) or the build fails. The frontend origin goes in the backend's
+  `CORS_ALLOW_ORIGINS`.
+- **Dependencies** are on the latest releases, except TypeScript stays on 6.x: vue-tsc and
+  typescript-eslint do not support TypeScript 7 yet. `npm audit` reports `braces` (via
+  `@vue/eslint-config-typescript` and `fast-glob`), a lint-time-only dev dependency with no
+  patched release; the app bundle does not include it. Node must be 24.15+ (or 22.22+).
