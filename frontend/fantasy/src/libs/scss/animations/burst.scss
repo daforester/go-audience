@@ -1,0 +1,17 @@
+@keyframes burstText {
+  from {
+    text-shadow: 0 0 10px black;
+    transform: scale(1.2);
+  }
+  to {
+    text-shadow: unset;
+    transform: scale(1);
+  }
+}
+
+.burst {
+  animation-name: burstText;
+  animation-duration:0.5s;
+  animation-iteration-count: 1;
+  animation-timing-function: linear;
+}

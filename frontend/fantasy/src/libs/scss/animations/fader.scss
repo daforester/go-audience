@@ -1,0 +1,16 @@
+@keyframes faderText {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
+  }
+}
+
+.fader {
+  animation-name: faderText;
+  animation-duration:5s;
+  animation-iteration-count: 1;
+  animation-timing-function: linear;
+  animation-fill-mode: forwards;
+}
