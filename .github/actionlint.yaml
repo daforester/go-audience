@@ -1,0 +1,5 @@
+# actionlint's built-in runner list lags GitHub's. ubuntu-26.04 is a GitHub-hosted image
+# (see github.com/actions/runner-images); declaring it here keeps local linting clean.
+self-hosted-runner:
+  labels:
+    - ubuntu-26.04

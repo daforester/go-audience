@@ -1,0 +1,31 @@
+# Keeps Fantasy's dependencies on their latest releases. Scoped to Fantasy only: Trudge and
+# PriceIsRight are left exactly as they are.
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    groups:
+      actions:
+        patterns: ["*"]
+
+  - package-ecosystem: gomod
+    directory: /backend/apps/fantasy
+    schedule:
+      interval: weekly
+    groups:
+      go-modules:
+        patterns: ["*"]
+
+  - package-ecosystem: npm
+    directory: /frontend/fantasy
+    schedule:
+      interval: weekly
+    groups:
+      npm-packages:
+        patterns: ["*"]
+    ignore:
+      # vue-tsc and typescript-eslint do not support TypeScript 7 yet; lift this once they do
+      - dependency-name: typescript
+        update-types: ["version-update:semver-major"]

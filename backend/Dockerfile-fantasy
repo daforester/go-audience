@@ -1,4 +1,5 @@
-FROM golang:1.27 AS compiler
+# golang:1 is always the newest Go release; go.mod sets the minimum
+FROM golang:1 AS compiler
 
 COPY apps/fantasy /src/fantasy/
 
@@ -8,7 +9,7 @@ RUN go mod download && CGO_ENABLED=0 go build -o /go/bin/fantasy ./cmd/fantasy.g
 
 RUN mkdir /data
 
-FROM gcr.io/distroless/static-debian12:nonroot
+FROM gcr.io/distroless/static-debian13:nonroot
 
 COPY --from=compiler /go/bin/fantasy /fantasy
 
