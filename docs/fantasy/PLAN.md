@@ -562,3 +562,8 @@ Where the build differs from, or adds to, the plan:
   pinned submission is revealed next, ahead of the staff ranking, even if still pending) or
   *Veto*. An admin rejection is a veto: staff cannot restore it, only an admin can. Playing,
   vetoing or resetting clears the pin.
+- **CI/CD**: `.github/workflows/fantasy.yml` tests both halves, builds the backend image to
+  `ghcr.io/<owner>/fantasy-backend` and publishes the frontend build to the
+  `deploy/fantasy-frontend` branch, on pushes to `main` or manual runs. Actions are pinned to
+  commit SHAs. `backend/Dockerfile-fantasy.dockerignore` limits the image build context to
+  Fantasy without affecting the Trudge or PriceIsRight images.

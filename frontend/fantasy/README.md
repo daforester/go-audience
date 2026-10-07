@@ -76,6 +76,21 @@ VITE_API_URL=https://ffc-api.furrific.uk/api VITE_WS_URL=wss://ffc-api.furrific.
 The backend must list the site the frontend is served from in `CORS_ALLOW_ORIGINS`
 (or `FANTASY_CORS_ALLOW_ORIGINS`).
 
+## Deployment
+
+`.github/workflows/fantasy.yml` tests and builds both halves on every pull request that
+touches Fantasy. On a push to `main` (or a manual "Run workflow"), it also:
+
+- pushes the backend image to `ghcr.io/<owner>/fantasy-backend`, tagged `latest`, the
+  branch name and the short commit SHA;
+- publishes this frontend's production build to the `deploy/fantasy-frontend` branch, one
+  commit per deploy, with `DEPLOYED_FROM.txt` recording the source commit. Serve that
+  branch's files from any static host; roll back by deploying an earlier commit of it.
+
+The build reads the endpoints from repository variables `FANTASY_API_URL` and
+`FANTASY_WS_URL` (Settings > Secrets and variables > Actions > Variables), and fails if
+they are missing.
+
 ## Music
 
 The main display can play music per phase like Trudge's did. New tracks suited to the

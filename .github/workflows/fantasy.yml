@@ -1,0 +1,216 @@
+# Fantasy Furry Convention: test, build and deploy
+#
+#   backend   tested, then built into ghcr.io/<owner>/fantasy-backend
+#   frontend  tested, built, then published as static files on the deploy/fantasy-frontend branch
+#
+# Pushes to main publish both. Pull requests and other branches only test and build.
+# "Run workflow" (workflow_dispatch) on any branch publishes that branch's build.
+#
+# Repository variables (Settings > Secrets and variables > Actions > Variables):
+#   FANTASY_API_URL  e.g. https://ffc-api.furrific.uk/api
+#   FANTASY_WS_URL   e.g. wss://ffc-api.furrific.uk/ws
+# The frontend build fails without them; endpoints are never hardcoded.
+
+name: Fantasy
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - backend/apps/fantasy/**
+      - backend/config-fantasy.toml
+      - backend/Dockerfile-fantasy
+      - backend/Dockerfile-fantasy.dockerignore
+      - frontend/fantasy/**
+      - .github/workflows/fantasy.yml
+  pull_request:
+    paths:
+      - backend/apps/fantasy/**
+      - backend/config-fantasy.toml
+      - backend/Dockerfile-fantasy
+      - backend/Dockerfile-fantasy.dockerignore
+      - frontend/fantasy/**
+      - .github/workflows/fantasy.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  IMAGE: ghcr.io/${{ github.repository_owner }}/fantasy-backend
+  DEPLOY_BRANCH: deploy/fantasy-frontend
+  # Publish on pushes to main and on manual runs; everything else only builds
+  PUBLISH: ${{ (github.event_name == 'push' && github.ref == 'refs/heads/main') || github.event_name == 'workflow_dispatch' }}
+
+jobs:
+  backend:
+    name: Backend
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    defaults:
+      run:
+        working-directory: backend/apps/fantasy
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: backend/apps/fantasy/go.mod
+          cache-dependency-path: backend/apps/fantasy/go.sum
+
+      - name: Check formatting
+        run: |
+          unformatted=$(gofmt -l .)
+          if [ -n "$unformatted" ]; then
+            echo "::error::gofmt needed on: $unformatted"
+            exit 1
+          fi
+
+      - name: Vet
+        run: go vet ./...
+
+      - name: Test
+        run: go test -race -count=1 ./...
+
+      - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+
+      - name: Log in to GitHub Container Registry
+        if: env.PUBLISH == 'true'
+        uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Image tags
+        id: meta
+        uses: docker/metadata-action@dc802804100637a589fabce1cb79ff13a1411302 # v6.2.0
+        with:
+          images: ${{ env.IMAGE }}
+          tags: |
+            type=sha,format=short
+            type=ref,event=branch
+            type=ref,event=pr
+            type=raw,value=latest,enable={{is_default_branch}}
+
+      - name: Build and push
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
+        with:
+          context: backend
+          file: backend/Dockerfile-fantasy
+          platforms: linux/amd64
+          push: ${{ env.PUBLISH == 'true' }}
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha,scope=fantasy-backend
+          cache-to: type=gha,mode=max,scope=fantasy-backend
+
+  frontend:
+    name: Frontend
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    defaults:
+      run:
+        working-directory: frontend/fantasy
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: frontend/fantasy/package-lock.json
+
+      - name: Install
+        run: npm ci
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Unit tests
+        run: npx vitest run
+
+      - name: Check endpoint configuration
+        env:
+          VITE_API_URL: ${{ vars.FANTASY_API_URL }}
+          VITE_WS_URL: ${{ vars.FANTASY_WS_URL }}
+        run: |
+          if [ -z "$VITE_API_URL" ] || [ -z "$VITE_WS_URL" ]; then
+            echo "::error::Set the FANTASY_API_URL and FANTASY_WS_URL repository variables"
+            exit 1
+          fi
+
+      - name: Type-check and build
+        env:
+          VITE_API_URL: ${{ vars.FANTASY_API_URL }}
+          VITE_WS_URL: ${{ vars.FANTASY_WS_URL }}
+        run: npm run build
+
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: fantasy-frontend
+          path: frontend/fantasy/dist
+          if-no-files-found: error
+          retention-days: 7
+
+  deploy-frontend:
+    name: Publish frontend
+    needs: [backend, frontend]
+    if: (github.event_name == 'push' && github.ref == 'refs/heads/main') || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    # One publish at a time, so two runs never race on the deploy branch
+    concurrency:
+      group: fantasy-frontend-deploy
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 1
+
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: fantasy-frontend
+          path: dist
+
+      - name: Publish to ${{ env.DEPLOY_BRANCH }}
+        env:
+          SOURCE_SHA: ${{ github.sha }}
+          SOURCE_REF: ${{ github.ref_name }}
+          API_URL: ${{ vars.FANTASY_API_URL }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          # Build on the branch's history so every deploy can be rolled back
+          if git ls-remote --exit-code --heads origin "$DEPLOY_BRANCH" > /dev/null; then
+            git fetch --depth=1 origin "$DEPLOY_BRANCH"
+            git worktree add deploy-tree FETCH_HEAD
+            git -C deploy-tree checkout -B "$DEPLOY_BRANCH"
+          else
+            git worktree add --detach deploy-tree
+            git -C deploy-tree checkout --orphan "$DEPLOY_BRANCH"
+          fi
+
+          # Replace everything with this build
+          find deploy-tree -mindepth 1 -maxdepth 1 ! -name .git -exec rm -rf {} +
+          cp -R dist/. deploy-tree/
+          cat > deploy-tree/DEPLOYED_FROM.txt <<EOF
+          Fantasy Furry Convention frontend build
+          Source: ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/commit/${SOURCE_SHA}
+          Branch: ${SOURCE_REF}
+          API:    ${API_URL}
+          EOF
+
+          cd deploy-tree
+          git add -A
+          if git diff --cached --quiet; then
+            echo "Build is identical to the current deploy, nothing to publish"
+            exit 0
+          fi
+          git commit -m "Deploy Fantasy frontend from ${SOURCE_SHA::7} (${SOURCE_REF})"
+          git push origin "HEAD:refs/heads/$DEPLOY_BRANCH"

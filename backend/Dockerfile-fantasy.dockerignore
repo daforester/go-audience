@@ -1,0 +1,8 @@
+# Used only when building Dockerfile-fantasy (BuildKit picks it by name), so the Trudge and
+# PriceIsRight images are unaffected. The Fantasy image needs its module and config only.
+*
+!apps/fantasy
+!config-fantasy.toml
+apps/fantasy/**/*.dat
+apps/fantasy/**/*.tmp
+apps/fantasy/**/*_test.go
