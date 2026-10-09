@@ -102,6 +102,16 @@ startup and `GET /api/version` returns it), pushes the image as `:0.0.1`, `:0.0`
 `:latest`, and creates a GitHub Release. A pre-release such as `fantasy-backend/v1.0.0-rc.1`
 is pushed as `:1.0.0-rc.1` only. `:latest` always means the newest release.
 
+Every build takes its version from the tags on its commit
+(`backend/apps/fantasy/scripts/version.sh`): a tagged commit is `0.0.1`, three commits later
+is `0.0.1-3-gabc1234`, uncommitted backend changes add `+dirty`, and before the first tag it
+is `0.0.0-dev.abc1234`. For a local image with the same version CI would give it:
+
+```sh
+cd backend
+docker build --build-arg VERSION="$(apps/fantasy/scripts/version.sh)" -f Dockerfile-fantasy -t fantasy-backend .
+```
+
 The frontend build reads the endpoints from repository variables `FANTASY_API_URL` and
 `FANTASY_WS_URL` (Settings > Secrets and variables > Actions > Variables), and fails if
 they are missing.

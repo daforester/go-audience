@@ -570,4 +570,7 @@ Where the build differs from, or adds to, the plan:
 - **Backend versions**: releases are `fantasy-backend/vX.Y.Z` git tags on `main` (prefixed
   because the repository also holds Trudge and PriceIsRight). The version is stamped into
   the binary via `-ldflags` (`setup.Version`, reported by `GET /api/version`), and the image
-  is tagged `X.Y.Z`, `X.Y` and `latest`. Non-release builds report `0.0.0-dev.<sha>`.
+  is tagged `X.Y.Z`, `X.Y` and `latest`. Every build takes its version from the tags on its commit via
+  `backend/apps/fantasy/scripts/version.sh` (`git describe`): `X.Y.Z` on a tagged commit,
+  `X.Y.Z-N-g<sha>` after it, `+dirty` with uncommitted backend changes, `0.0.0-dev.<sha>`
+  before the first tag.

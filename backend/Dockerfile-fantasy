@@ -5,7 +5,9 @@ COPY apps/fantasy /src/fantasy/
 
 WORKDIR /src/fantasy
 
-# Release builds pass the version from the fantasy-backend/vX.Y.Z tag; local builds say "dev"
+# The version comes from the git tags on the commit (apps/fantasy/scripts/version.sh):
+#   docker build --build-arg VERSION="$(apps/fantasy/scripts/version.sh)" -f Dockerfile-fantasy .
+# Without it the binary reports "dev"
 ARG VERSION=dev
 
 RUN go mod download && CGO_ENABLED=0 go build \

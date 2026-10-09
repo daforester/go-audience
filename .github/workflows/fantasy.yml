@@ -13,6 +13,8 @@
 # (GET /api/version reports it), pushes it as :0.0.1, :0.0 and :latest, and creates a
 # GitHub Release. Pre-releases (fantasy-backend/v1.0.0-rc.1) get only their exact version.
 # Builds from main are tagged :main and :sha-<commit>; :latest always means the newest release.
+# Every build takes its version from the tags on its commit (scripts/version.sh): a tagged
+# commit is X.Y.Z, later commits are X.Y.Z-N-g<sha>, before the first tag 0.0.0-dev.<sha>.
 #
 # Repository variables (Settings > Secrets and variables > Actions > Variables):
 #   FANTASY_API_URL  e.g. https://ffc-api.furrific.uk/api
@@ -73,6 +75,12 @@ jobs:
       version: ${{ steps.version.outputs.version }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          # The version comes from the tags in the history: fetch all commits and tags,
+          # but not old file contents
+          fetch-depth: 0
+          fetch-tags: true
+          filter: blob:none
 
       - name: Version
         id: version
@@ -90,7 +98,8 @@ jobs:
               exit 1
             fi
           else
-            version="0.0.0-dev.${GITHUB_SHA::7}"
+            # Untagged commits: the nearest fantasy-backend tag and how far past it we are
+            version="$(scripts/version.sh)"
           fi
           echo "version=$version" >> "$GITHUB_OUTPUT"
           echo "Backend version: $version"
