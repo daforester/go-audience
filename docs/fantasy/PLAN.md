@@ -567,3 +567,7 @@ Where the build differs from, or adds to, the plan:
   `deploy/fantasy-frontend` branch, on pushes to `main` or manual runs. Actions are pinned to
   commit SHAs. `backend/Dockerfile-fantasy.dockerignore` limits the image build context to
   Fantasy without affecting the Trudge or PriceIsRight images.
+- **Backend versions**: releases are `fantasy-backend/vX.Y.Z` git tags on `main` (prefixed
+  because the repository also holds Trudge and PriceIsRight). The version is stamped into
+  the binary via `-ldflags` (`setup.Version`, reported by `GET /api/version`), and the image
+  is tagged `X.Y.Z`, `X.Y` and `latest`. Non-release builds report `0.0.0-dev.<sha>`.

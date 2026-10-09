@@ -5,6 +5,7 @@ import (
 	"bitbucket.org/daforester/go-audience/apps/fantasy/bindings"
 	"bitbucket.org/daforester/go-audience/apps/fantasy/repositories"
 	"bitbucket.org/daforester/go-audience/apps/fantasy/setup"
+	"fmt"
 	"github.com/daforester/go-di-container/di"
 	"github.com/sirupsen/logrus"
 	"github.com/spf13/viper"
@@ -15,6 +16,8 @@ import (
 )
 
 func main() {
+	fmt.Println("Fantasy backend", setup.Version)
+
 	setup.Config()
 	setup.Keys()
 	setup.Logger()

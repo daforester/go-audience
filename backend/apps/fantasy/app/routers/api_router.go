@@ -30,6 +30,10 @@ func (P *APIRouter) RegisterRoutes(router *fiber.App) {
 }
 
 func (P *APIRouter) RegisterPublicRoutes(router *fiber.App) {
+	router.Get("/api/version", func(c fiber.Ctx) error {
+		return P.RunController(c, &http2.GetVersionController{})
+	})
+
 	router.Get("/api/token/refresh", func(c fiber.Ctx) error {
 		return P.RunController(c, &http2.RefreshTokenController{})
 	})

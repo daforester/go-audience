@@ -6,6 +6,14 @@
 # Pushes to main publish both. Pull requests and other branches only test and build.
 # "Run workflow" (workflow_dispatch) on any branch publishes that branch's build.
 #
+# Backend releases are git tags named fantasy-backend/vX.Y.Z (e.g. fantasy-backend/v0.0.1),
+# on a commit already on main:
+#   git tag fantasy-backend/v0.0.1 && git push origin fantasy-backend/v0.0.1
+# A release tests the backend, builds the image with the version stamped into the binary
+# (GET /api/version reports it), pushes it as :0.0.1, :0.0 and :latest, and creates a
+# GitHub Release. Pre-releases (fantasy-backend/v1.0.0-rc.1) get only their exact version.
+# Builds from main are tagged :main and :sha-<commit>; :latest always means the newest release.
+#
 # Repository variables (Settings > Secrets and variables > Actions > Variables):
 #   FANTASY_API_URL  e.g. https://ffc-api.furrific.uk/api
 #   FANTASY_WS_URL   e.g. wss://ffc-api.furrific.uk/ws
@@ -22,6 +30,8 @@ name: Fantasy
 on:
   push:
     branches: [main]
+    # Path filters do not apply to tags: every release tag triggers a run
+    tags: ['fantasy-backend/v*']
     paths:
       - backend/apps/fantasy/**
       - backend/config-fantasy.toml
@@ -45,8 +55,9 @@ permissions:
 env:
   IMAGE: ghcr.io/${{ github.repository_owner }}/fantasy-backend
   DEPLOY_BRANCH: deploy/fantasy-frontend
-  # Publish on pushes to main and on manual runs; everything else only builds
-  PUBLISH: ${{ (github.event_name == 'push' && github.ref == 'refs/heads/main') || github.event_name == 'workflow_dispatch' }}
+  RELEASE: ${{ startsWith(github.ref, 'refs/tags/fantasy-backend/v') }}
+  # Publish on releases, pushes to main and manual runs; everything else only builds
+  PUBLISH: ${{ startsWith(github.ref, 'refs/tags/fantasy-backend/v') || (github.event_name == 'push' && github.ref == 'refs/heads/main') || github.event_name == 'workflow_dispatch' }}
 
 jobs:
   backend:
@@ -58,8 +69,31 @@ jobs:
     defaults:
       run:
         working-directory: backend/apps/fantasy
+    outputs:
+      version: ${{ steps.version.outputs.version }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Version
+        id: version
+        run: |
+          if [ "$RELEASE" = "true" ]; then
+            version="${GITHUB_REF_NAME#fantasy-backend/v}"
+            if ! echo "$version" | grep -Eq '^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(-[0-9A-Za-z.-]+)?$'; then
+              echo "::error::$GITHUB_REF_NAME is not fantasy-backend/vMAJOR.MINOR.PATCH"
+              exit 1
+            fi
+            # Only release code that has been merged
+            git fetch --no-tags --filter=blob:none origin main
+            if ! git merge-base --is-ancestor "$GITHUB_SHA" FETCH_HEAD; then
+              echo "::error::$GITHUB_REF_NAME points at a commit that is not on main"
+              exit 1
+            fi
+          else
+            version="0.0.0-dev.${GITHUB_SHA::7}"
+          fi
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "Backend version: $version"
 
       - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
@@ -99,11 +133,15 @@ jobs:
         uses: docker/metadata-action@dc802804100637a589fabce1cb79ff13a1411302 # v6.2.0
         with:
           images: ${{ env.IMAGE }}
+          flavor: |
+            latest=false
           tags: |
-            type=sha,format=short
+            type=semver,pattern={{version}},value=${{ steps.version.outputs.version }},enable=${{ env.RELEASE == 'true' }}
+            type=semver,pattern={{major}}.{{minor}},value=${{ steps.version.outputs.version }},enable=${{ env.RELEASE == 'true' }}
+            type=raw,value=latest,enable=${{ env.RELEASE == 'true' && !contains(steps.version.outputs.version, '-') }}
             type=ref,event=branch
             type=ref,event=pr
-            type=raw,value=latest,enable={{is_default_branch}}
+            type=sha,format=short
 
       - name: Build and push
         uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
@@ -112,6 +150,8 @@ jobs:
           file: backend/Dockerfile-fantasy
           platforms: linux/amd64
           push: ${{ env.PUBLISH == 'true' }}
+          build-args: |
+            VERSION=${{ steps.version.outputs.version }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha,scope=fantasy-backend
@@ -119,6 +159,8 @@ jobs:
 
   frontend:
     name: Frontend
+    # Backend releases do not rebuild the frontend
+    if: ${{ !startsWith(github.ref, 'refs/tags/') }}
     runs-on: ubuntu-26.04
     permissions:
       contents: read
@@ -225,3 +267,26 @@ jobs:
           fi
           git commit -m "Deploy Fantasy frontend from ${SOURCE_SHA::7} (${SOURCE_REF})"
           git push origin "HEAD:refs/heads/$DEPLOY_BRANCH"
+
+  release:
+    name: GitHub Release
+    needs: backend
+    if: startsWith(github.ref, 'refs/tags/fantasy-backend/v')
+    runs-on: ubuntu-26.04
+    permissions:
+      contents: write
+    steps:
+      - name: Create release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          VERSION: ${{ needs.backend.outputs.version }}
+        run: |
+          prerelease=""
+          case "$VERSION" in *-*) prerelease="--prerelease" ;; esac
+          # shellcheck disable=SC2086 # $prerelease is empty or a single flag
+          gh release create "$GITHUB_REF_NAME" \
+            --repo "$GITHUB_REPOSITORY" \
+            --title "Fantasy backend v$VERSION" \
+            --notes "Image: \`${IMAGE}:${VERSION}\`" \
+            --generate-notes \
+            $prerelease

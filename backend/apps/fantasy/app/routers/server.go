@@ -15,7 +15,7 @@ import (
 // NewServer builds the Fiber app with Fantasy's security settings and all routes
 func NewServer(app di.AppInterface) *fiber.App {
 	config := fiber.Config{
-		AppName: "fantasy",
+		AppName: "fantasy " + setup.Version,
 
 		// Request data is copied explicitly (see services/fiberhelper). Immutable stays off
 		// so tests run against fasthttp's real buffer reuse and catch any missed copy.

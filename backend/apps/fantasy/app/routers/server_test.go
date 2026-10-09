@@ -444,3 +444,11 @@ func TestNaughtyWebSocket(t *testing.T) {
 		t.Fatalf("expected game code, got %q", msg)
 	}
 }
+
+func TestVersion(t *testing.T) {
+	s := newTestServer(t, nil)
+	_, out, _ := s.do("GET", "/api/version", "", nil, nil)
+	if out["Response"].(map[string]interface{})["Version"] != setup.Version {
+		t.Fatalf("version endpoint: %v", out)
+	}
+}

@@ -5,7 +5,12 @@ COPY apps/fantasy /src/fantasy/
 
 WORKDIR /src/fantasy
 
-RUN go mod download && CGO_ENABLED=0 go build -o /go/bin/fantasy ./cmd/fantasy.go
+# Release builds pass the version from the fantasy-backend/vX.Y.Z tag; local builds say "dev"
+ARG VERSION=dev
+
+RUN go mod download && CGO_ENABLED=0 go build \
+    -ldflags "-s -w -X bitbucket.org/daforester/go-audience/apps/fantasy/setup.Version=${VERSION}" \
+    -o /go/bin/fantasy ./cmd/fantasy.go
 
 RUN mkdir /data
 
