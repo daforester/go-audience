@@ -1,0 +1,4 @@
+Fantasy Furry Convention frontend build
+Source: https://github.com/daforester/go-audience/commit/1eb7c1d5dbbf1a9b324b5c6af35b04655030964c
+Branch: main
+API:    https://ffc-api.furrific.uk/api
